@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useAccount, useWriteContract } from "wagmi";
 import { useReputation, useUSDCBalance } from "@/hooks/useProtocol";
 import { CONTRACTS, ERC20_ABI, MARKET_ABI, formatUSDC, parseUSDC } from "@/lib/contracts";
+import { arcTestnet } from "@/lib/wagmi";
 
 const MIN_SCORE = 75;
 const CREATION_FEE = parseUSDC("1000"); // 1000 USDC
@@ -29,6 +30,7 @@ export function CreateMarketPanel({ score, dark }: { score: number; dark: boolea
   const hasBalance = balance >= CREATION_FEE;
 
   async function handleCreate() {
+    if (!address) { setStatus("Connect wallet first"); return; }
     if (!question.trim()) { setStatus("Enter a market question"); return; }
     if (!days || parseInt(days) < 1) { setStatus("Enter a valid number of days"); return; }
     if (!canCreate) { setStatus(`ArcIQ score must be ≥ ${MIN_SCORE}`); return; }
@@ -45,6 +47,8 @@ export function CreateMarketPanel({ score, dark }: { score: number; dark: boolea
         abi: ERC20_ABI,
         functionName: "approve",
         args: [CONTRACTS.predictionMarket, CREATION_FEE],
+        account: address,
+        chain: arcTestnet,
         chainId: 5042002,
       });
 
@@ -72,6 +76,8 @@ export function CreateMarketPanel({ score, dark }: { score: number; dark: boolea
         ] as const,
         functionName: "createUserMarket",
         args: [question.trim(), endTime],
+        account: address,
+        chain: arcTestnet,
         chainId: 5042002,
       });
 
