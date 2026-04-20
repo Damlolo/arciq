@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useAccount } from "wagmi";
-import { useWriteContract, useReadContract } from "wagmi";
+import { useAccount, useWriteContract } from "wagmi";
 import { useReputation, useUSDCBalance } from "@/hooks/useProtocol";
 import { CONTRACTS, ERC20_ABI, MARKET_ABI, formatUSDC, parseUSDC } from "@/lib/contracts";
 
@@ -42,10 +41,11 @@ export function CreateMarketPanel({ score, dark }: { score: number; dark: boolea
       // Step 1: approve 1000 USDC to prediction market contract
       setStatus("Step 1/3 — Approving 1,000 USDC...");
       await writeContractAsync({
-        address: CONTRACTS.usdc,
+        address: CONTRACTS.usdc as `0x${string}`,
         abi: ERC20_ABI,
         functionName: "approve",
         args: [CONTRACTS.predictionMarket, CREATION_FEE],
+        chainId: 5042002,
       });
 
       // Step 2: calculate end time
@@ -57,7 +57,7 @@ export function CreateMarketPanel({ score, dark }: { score: number; dark: boolea
       // For now we call the standard createMarket (will need contract upgrade for full trustless UGC).
       setStatus("Step 2/3 — Creating market on chain...");
       await writeContractAsync({
-        address: CONTRACTS.predictionMarket,
+        address: CONTRACTS.predictionMarket as `0x${string}`,
         abi: [
           {
             name: "createUserMarket",
@@ -69,9 +69,10 @@ export function CreateMarketPanel({ score, dark }: { score: number; dark: boolea
             ],
             outputs: [{ name: "id", type: "uint256" }],
           },
-        ],
+        ] as const,
         functionName: "createUserMarket",
         args: [question.trim(), endTime],
+        chainId: 5042002,
       });
 
       setStatus("Step 3/3 — Done!");
