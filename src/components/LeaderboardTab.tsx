@@ -4,7 +4,7 @@ import { useAccount } from "wagmi";
 import { useLeaderboard, useDisplayName, useScoreSync } from "@/hooks/useSupabase";
 import { useReputation } from "@/hooks/useProtocol";
 import { scoreToMultiplier, scoreTier } from "@/lib/contracts";
-import { useTheme } from "@/app/page";
+import { useTheme } from "@/lib/theme";
 
 function TierBadge({ score, dark }: { score: number; dark: boolean }) {
   const tier = scoreTier(score);

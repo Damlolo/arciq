@@ -4,7 +4,7 @@ import { useMarketCount, useMarket } from "@/hooks/useProtocol";
 import { useMarketAnalytics } from "@/hooks/useSupabase";
 import { recordMarketSnapshot } from "@/lib/supabase";
 import { formatUSDC } from "@/lib/contracts";
-import { useTheme } from "@/app/page";
+import { useTheme } from "@/lib/theme";
 
 // Syncs on-chain market data to Supabase silently
 function MarketSyncer({ id }: { id: number }) {

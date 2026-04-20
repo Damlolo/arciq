@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useAccount } from "wagmi";
 import { useLoanData, useBorrow, useRepay, useReputation, useVaultData } from "@/hooks/useProtocol";
 import { formatUSDC, parseUSDC, scoreToMultiplier } from "@/lib/contracts";
-import { useTheme } from "@/app/page";
+import { useTheme } from "@/lib/theme";
 
 export function BorrowPanel() {
   const { address } = useAccount();

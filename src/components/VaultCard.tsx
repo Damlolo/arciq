@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useVaultData, useDeposit, useWithdraw } from "@/hooks/useProtocol";
 import { formatUSDC, parseUSDC } from "@/lib/contracts";
-import { useTheme } from "@/app/page";
+import { useTheme } from "@/lib/theme";
 
 export function VaultCard() {
   const { collateral, freeCollateral, locked, refetch } = useVaultData();

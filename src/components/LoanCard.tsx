@@ -1,7 +1,7 @@
 "use client";
 import { useLoanData } from "@/hooks/useProtocol";
 import { formatUSDC } from "@/lib/contracts";
-import { useTheme } from "@/app/page";
+import { useTheme } from "@/lib/theme";
 
 export function LoanCard() {
   const { principal, interest, totalDue, healthFactor, hasLoan, maxBorrow } = useLoanData();

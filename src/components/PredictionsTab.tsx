@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { useMarketCount, useMarket, usePredict, useReputation } from "@/hooks/useProtocol";
 import { formatUSDC } from "@/lib/contracts";
-import { useTheme } from "@/app/page";
+import { useTheme } from "@/lib/theme";
 
 type PredictionStatus = "active" | "won" | "lost" | "pending" | "claimable";
 

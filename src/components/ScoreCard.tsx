@@ -2,7 +2,7 @@
 import { useAccount } from "wagmi";
 import { useReputation } from "@/hooks/useProtocol";
 import { scoreToMultiplier, scoreTier } from "@/lib/contracts";
-import { useTheme } from "@/app/page";
+import { useTheme } from "@/lib/theme";
 
 export function ScoreCard() {
   const { address } = useAccount();

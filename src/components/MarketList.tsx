@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useAccount } from "wagmi";
 import { useMarketCount, useMarket, usePredict } from "@/hooks/useProtocol";
 import { formatUSDC, parseUSDC } from "@/lib/contracts";
-import { useTheme } from "@/app/page";
+import { useTheme } from "@/lib/theme";
 
 function MarketCard({ id, viewOnly }: { id: number; viewOnly?: boolean }) {
   const { address } = useAccount();

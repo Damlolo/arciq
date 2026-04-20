@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@/components/ConnectButton";
 import { ScoreCard } from "@/components/ScoreCard";
@@ -16,9 +16,9 @@ import { AnalyticsTab } from "@/components/AnalyticsTab";
 import { useUSDCBalance, useReputation } from "@/hooks/useProtocol";
 import { useScoreSync } from "@/hooks/useSupabase";
 import { formatUSDC } from "@/lib/contracts";
+import { ThemeContext, useTheme } from "@/lib/theme";
 
-export const ThemeContext = createContext<{ dark: boolean; toggle: () => void }>({ dark: false, toggle: () => {} });
-export function useTheme() { return useContext(ThemeContext); }
+// ThemeContext and useTheme are defined in @/lib/theme
 
 type Tab = "DASHBOARD" | "PREDICT" | "MY PREDICTIONS" | "BORROW" | "CREATE MARKET" | "LEADERBOARD" | "ANALYTICS" | "FAUCET" | "PROFILE";
 
