@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { useMarketCount, useMarket, usePredict } from "@/hooks/useProtocol";
 import { formatUSDC, parseUSDC } from "@/lib/contracts";
@@ -59,8 +59,11 @@ function MarketCard({ id, viewOnly }: { id: number; viewOnly?: boolean }) {
     } catch (e: any) { setStatus("Error: " + (e?.shortMessage ?? e?.message)); }
   }
 
+  // Reduce opacity for resolved markets to push them visually lower
+  const resolvedStyle = market.resolved ? "opacity-60" : "";
+
   return (
-    <div className={`rounded-xl border p-4 ${card}`}>
+    <div className={`rounded-xl border p-4 ${card} ${resolvedStyle}`}>
       <div className="flex items-start justify-between gap-3 mb-3">
         <p className={`text-sm font-semibold leading-snug flex-1 ${dark ? "text-white" : "text-gray-900"}`}>{market.question}</p>
         <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -122,9 +125,38 @@ function MarketCard({ id, viewOnly }: { id: number; viewOnly?: boolean }) {
         </button>
       )}
       {market.resolved && payout === 0n && hasPosition && (
-        <div className={`text-sm text-center py-1 ${sub}`}>Incorrect prediction</div>
+        <div className={`text-sm text-center py-1 ${sub}`}>
+          {position!.claimed ? "Claimed ✓" : "Incorrect prediction"}
+        </div>
       )}
       {status && <div className={`mt-1.5 text-xs ${sub}`}>{status}</div>}
+    </div>
+  );
+}
+
+function SortedMarketList({ count, viewOnly }: { count: number; viewOnly?: boolean }) {
+  const [order, setOrder] = useState<number[]>(() => Array.from({ length: count }, (_, i) => i));
+
+  // Read all markets and sort: live → pending → resolved
+  const markets = Array.from({ length: count }, (_, i) => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { market } = useMarket(i);
+    return { id: i, market };
+  });
+
+  useEffect(() => {
+    const now = Math.floor(Date.now() / 1000);
+    const sorted = [...markets].sort((a, b) => {
+      const aResolved = a.market?.resolved ? 2 : (Number(a.market?.endTime ?? 0) <= now ? 1 : 0);
+      const bResolved = b.market?.resolved ? 2 : (Number(b.market?.endTime ?? 0) <= now ? 1 : 0);
+      return aResolved - bResolved;
+    });
+    setOrder(sorted.map(m => m.id));
+  }, [markets.map(m => m.market?.resolved).join(",")]);
+
+  return (
+    <div className="space-y-4">
+      {order.map(i => <MarketCard key={i} id={i} viewOnly={viewOnly} />)}
     </div>
   );
 }
@@ -137,9 +169,5 @@ export function MarketList({ viewOnly }: { viewOnly?: boolean }) {
       No markets yet. Run the createMarkets script to add markets.
     </div>
   );
-  return (
-    <div className="space-y-4">
-      {Array.from({ length: count }, (_, i) => <MarketCard key={i} id={i} viewOnly={viewOnly} />)}
-    </div>
-  );
+  return <SortedMarketList count={count} viewOnly={viewOnly} />;
 }
