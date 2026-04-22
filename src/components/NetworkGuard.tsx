@@ -1,55 +1,60 @@
 "use client";
-import { useEffect } from "react";
-import { useAccount, useChainId, useSwitchChain } from "wagmi";
+import { useEffect, useState } from "react";
+import { useAccount, useChainId } from "wagmi";
 import { useTheme } from "@/lib/theme";
 
-const ARC_TESTNET_ID = 5042002;
+const ARC_CHAIN_ID = 5042002;
+const ARC_CHAIN_HEX = "0x4CE672";
+
+async function switchToArc() {
+  const eth = (window as any).ethereum;
+  if (!eth) return;
+  try {
+    await eth.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: ARC_CHAIN_HEX }],
+    });
+  } catch (e: any) {
+    if (e.code === 4902) {
+      await eth.request({
+        method: "wallet_addEthereumChain",
+        params: [{
+          chainId: ARC_CHAIN_HEX,
+          chainName: "Arc Testnet",
+          nativeCurrency: { name: "USD Coin", symbol: "USDC", decimals: 18 },
+          rpcUrls: ["https://rpc.testnet.arc.network"],
+          blockExplorerUrls: ["https://testnet.arcscan.app"],
+        }],
+      });
+    }
+  }
+}
 
 export function NetworkGuard() {
   const { isConnected } = useAccount();
   const chainId = useChainId();
-  const { switchChain, isPending } = useSwitchChain();
   const { dark } = useTheme();
+  const [loading, setLoading] = useState(false);
 
-  // Auto-switch when wallet connects on wrong network
+  const wrong = isConnected && chainId !== ARC_CHAIN_ID;
+
+  // Auto-switch immediately when connected on wrong network
   useEffect(() => {
-    if (isConnected && chainId !== ARC_TESTNET_ID) {
-      // Small delay to let the wallet settle after connecting
-      const timer = setTimeout(() => {
-        switchChain({ chainId: ARC_TESTNET_ID });
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [isConnected, chainId]);
+    if (wrong) switchToArc();
+  }, [wrong]);
 
-  if (!isConnected || chainId === ARC_TESTNET_ID) return null;
+  if (!wrong) return null;
 
   return (
-    <div className={`fixed top-0 left-0 right-0 z-[100] flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium ${dark ? "bg-yellow-600 text-white" : "bg-yellow-500 text-gray-900"}`}>
-      <span className="text-xs sm:text-sm">Wrong network — Arc Testnet required</span>
+    <div className={`fixed top-0 left-0 right-0 z-[200] flex items-center justify-between px-4 py-3 ${dark ? "bg-yellow-600 text-white" : "bg-yellow-400 text-gray-900"}`}>
+      <span className="text-xs font-semibold">Wrong network — Arc Testnet required</span>
       <button
-        onClick={() => switchChain({ chainId: ARC_TESTNET_ID })}
-        disabled={isPending}
-        className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${dark ? "bg-gray-900 text-white hover:bg-gray-700" : "bg-gray-900 text-white hover:bg-gray-700"} disabled:opacity-50`}
+        disabled={loading}
+        onClick={async () => { setLoading(true); await switchToArc(); setLoading(false); }}
+        className="text-xs font-bold px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50"
       >
-        {isPending ? "Switching..." : "Switch Network"}
+        {loading ? "Switching…" : "Switch Now"}
       </button>
     </div>
   );
-}
-
-// Hook to trigger network switch before any transaction
-export function useEnsureArcNetwork() {
-  const chainId = useChainId();
-  const { switchChain } = useSwitchChain();
-
-  const ensureNetwork = async () => {
-    if (chainId !== ARC_TESTNET_ID) {
-      await switchChain({ chainId: ARC_TESTNET_ID });
-      // Wait a moment for the switch to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  };
-
-  return { ensureNetwork, isCorrectNetwork: chainId === ARC_TESTNET_ID };
 }

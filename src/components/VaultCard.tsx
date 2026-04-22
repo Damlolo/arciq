@@ -12,10 +12,47 @@ export function VaultCard() {
   const { approve, deposit, isPending: depositPending } = useDeposit();
   const { withdraw, isPending: withdrawPending } = useWithdraw();
   const { dark } = useTheme();
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
+  const [switching, setSwitching] = useState(false);
 
   const [tab, setTab] = useState<"deposit"|"withdraw">("deposit");
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState("");
+
+  const wrongNetwork = chainId !== ARC_CHAIN_ID;
+
+  async function handleSwitchNetwork() {
+    setSwitching(true);
+    try {
+      if (typeof window !== "undefined" && window.ethereum) {
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: "0x4CE672" }],
+          });
+        } catch (e: any) {
+          if (e?.code === 4902) {
+            await window.ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [{
+                chainId: "0x4CE672",
+                chainName: "Arc Testnet",
+                nativeCurrency: { name: "USD Coin", symbol: "USDC", decimals: 18 },
+                rpcUrls: ["https://rpc.testnet.arc.network"],
+                blockExplorerUrls: ["https://testnet.arcscan.app"],
+              }],
+            });
+          }
+        }
+      } else {
+        switchChain({ chainId: ARC_CHAIN_ID });
+      }
+    } catch (e: any) {
+      setStatus("Could not switch network — please switch manually in your wallet");
+    }
+    setSwitching(false);
+  }
 
   const card = dark ? "bg-gray-900 border-gray-800" : "bg-white border-gray-100";
   const sub = dark ? "text-gray-500" : "text-gray-400";
@@ -25,40 +62,45 @@ export function VaultCard() {
   const tabActive = dark ? "bg-gray-700 text-white shadow-sm" : "bg-white text-gray-900 shadow-sm";
   const tabInactive = dark ? "text-gray-500" : "text-gray-400";
 
-  const chainId = useChainId();
-  const { switchChain, isPending: switching } = useSwitchChain();
-  const isWrongNetwork = chainId !== ARC_CHAIN_ID;
+  async function switchAndRun(fn: () => Promise<void>) {
+    try {
+      if (wrongNetwork) {
+        await handleSwitchNetwork();
+        await new Promise(r => setTimeout(r, 1500));
+        // Re-check after switch
+        if (wrongNetwork) {
+          setStatus("Please switch to Arc Testnet first");
+          return;
+        }
+      }
+      await fn();
+    } catch (e: any) {
+      setStatus("Error: " + (e?.shortMessage ?? e?.message ?? "unknown"));
+    }
+  }
 
   async function handleDeposit() {
     if (!amount) return;
-    try {
-      if (isWrongNetwork) {
-        setStatus("Switching to Arc Testnet…");
-        await switchChain({ chainId: ARC_CHAIN_ID });
-        await new Promise(r => setTimeout(r, 1500));
-      }
+    await switchAndRun(async () => {
       setStatus("Approving…");
       await approve(parseUSDC(amount));
       setStatus("Depositing…");
       await deposit(parseUSDC(amount));
       setStatus("Deposited ✓");
-      setAmount(""); refetch();
-    } catch (e: any) { setStatus("Error: " + (e?.shortMessage ?? e?.message)); }
+      setAmount("");
+      refetch();
+    });
   }
 
   async function handleWithdraw() {
     if (!amount) return;
-    try {
-      if (isWrongNetwork) {
-        setStatus("Switching to Arc Testnet…");
-        await switchChain({ chainId: ARC_CHAIN_ID });
-        await new Promise(r => setTimeout(r, 1500));
-      }
+    await switchAndRun(async () => {
       setStatus("Withdrawing…");
       await withdraw(parseUSDC(amount));
       setStatus("Withdrawn ✓");
-      setAmount(""); refetch();
-    } catch (e: any) { setStatus("Error: " + (e?.shortMessage ?? e?.message)); }
+      setAmount("");
+      refetch();
+    });
   }
 
   return (
@@ -67,7 +109,6 @@ export function VaultCard() {
       <div className={`text-3xl font-bold mb-1 ${main}`}>${formatUSDC(collateral)}</div>
       <div className={`text-xs mb-4 ${sub}`}>${formatUSDC(freeCollateral)} free · ${formatUSDC(locked)} locked</div>
 
-      {/* Tab switcher */}
       <div className={`flex gap-0.5 mb-3 p-0.5 rounded-lg ${tabBg}`}>
         {(["deposit","withdraw"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
@@ -77,7 +118,6 @@ export function VaultCard() {
         ))}
       </div>
 
-      {/* Input — full width, button below */}
       <input
         type="number"
         placeholder="USDC amount"
@@ -85,13 +125,14 @@ export function VaultCard() {
         onChange={e => setAmount(e.target.value)}
         className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2 ${inp}`}
       />
-      {isWrongNetwork ? (
+
+      {wrongNetwork ? (
         <button
-          onClick={() => switchChain({ chainId: ARC_CHAIN_ID })}
+          onClick={handleSwitchNetwork}
           disabled={switching}
           className="w-full py-2.5 bg-yellow-500 text-gray-900 text-sm font-bold rounded-lg hover:bg-yellow-400 disabled:opacity-50 transition-colors"
         >
-          {switching ? "Switching network…" : "Switch to Arc Testnet first"}
+          {switching ? "Switching network…" : "⚠ Switch to Arc Testnet"}
         </button>
       ) : (
         <button

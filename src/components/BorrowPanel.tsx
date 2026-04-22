@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId, useSwitchChain } from "wagmi";
+
+const ARC_CHAIN_ID = 5042002;
 import { useLoanData, useBorrow, useRepay, useReputation, useVaultData } from "@/hooks/useProtocol";
 import { formatUSDC, parseUSDC, scoreToMultiplier } from "@/lib/contracts";
 import { useTheme } from "@/lib/theme";
@@ -14,8 +16,22 @@ export function BorrowPanel() {
   const { approveLending, repay, isPending: repayPending } = useRepay();
   const { dark } = useTheme();
 
+  const chainId = useChainId();
+  const { switchChain, isPending: switching } = useSwitchChain();
+  const wrongNetwork = chainId !== ARC_CHAIN_ID;
   const [borrowAmount, setBorrowAmount] = useState("");
   const [status, setStatus] = useState("");
+
+  async function switchAndRun(fn: () => Promise<void>) {
+    if (wrongNetwork) {
+      setStatus("Switching to Arc Testnet…");
+      await new Promise<void>((resolve, reject) => {
+        switchChain({ chainId: ARC_CHAIN_ID }, { onSuccess: resolve, onError: reject });
+      });
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    await fn();
+  }
 
   const card = dark ? "bg-gray-900 border-gray-800" : "bg-white border-gray-100";
   const sub = dark ? "text-gray-500" : "text-gray-400";
@@ -32,19 +48,23 @@ export function BorrowPanel() {
     const parsed = parseUSDC(borrowAmount);
     if (parsed > available) { setStatus("Amount exceeds available capacity"); return; }
     try {
-      setStatus("Borrowing…");
-      await borrow(parsed);
-      setStatus("Borrowed ✓"); setBorrowAmount(""); refetch();
+      await switchAndRun(async () => {
+        setStatus("Borrowing…");
+        await borrow(parsed);
+        setStatus("Borrowed ✓"); setBorrowAmount(""); refetch();
+      });
     } catch (e: any) { setStatus("Error: " + (e?.shortMessage ?? e?.message)); }
   }
 
   async function handleRepay() {
     try {
-      setStatus("Approving…");
-      await approveLending(totalDue + totalDue / 100n);
-      setStatus("Repaying…");
-      await repay();
-      setStatus("Repaid ✓"); refetch();
+      await switchAndRun(async () => {
+        setStatus("Approving…");
+        await approveLending(totalDue + totalDue / 100n);
+        setStatus("Repaying…");
+        await repay();
+        setStatus("Repaid ✓"); refetch();
+      });
     } catch (e: any) { setStatus("Error: " + (e?.shortMessage ?? e?.message)); }
   }
 

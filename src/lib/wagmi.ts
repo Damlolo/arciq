@@ -1,3 +1,5 @@
+"use client";
+
 import { createConfig, http } from "wagmi";
 import { hardhat } from "wagmi/chains";
 import { defineChain } from "viem";
@@ -37,7 +39,7 @@ export const wagmiConfig = createConfig({
   ],
   transports: {
     [arcTestnet.id]: http("https://rpc.testnet.arc.network"),
-    [hardhat.id]:    http("http://127.0.0.1:8545"),
+    [hardhat.id]: http("http://127.0.0.1:8545"),
   },
 });
 
@@ -46,4 +48,3 @@ declare module "wagmi" {
     config: typeof wagmiConfig;
   }
 }
-

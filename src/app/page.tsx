@@ -175,10 +175,9 @@ export default function Home() {
             <button onClick={() => setMobileOpen(true)} className={dark ? "text-gray-400" : "text-gray-500"}>
               <MenuIcon cls="w-5 h-5" />
             </button>
-            {/* Centered logo */}
-            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2.5">
-              <img src="/logo.png" alt="ArcIQ" className="w-10 h-10 rounded-xl object-cover" />
-              <span className={`font-bold text-base ${dark ? "text-white" : "text-gray-900"}`}>ArcIQ</span>
+            {/* Centered logo only — no text */}
+            <div className="absolute left-1/2 -translate-x-1/2">
+              <img src="/logo.png" alt="ArcIQ" className="w-11 h-11 rounded-xl object-cover" />
             </div>
             <ConnectButton />
           </div>
