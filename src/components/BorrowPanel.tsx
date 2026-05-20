@@ -20,7 +20,6 @@ export function BorrowPanel() {
     const amt = parseFloat(borrowInput)     || 0;
     const maxBorrow  = col * (ltvPct / 100);
     const utilizePct = maxBorrow > 0 ? (amt / maxBorrow) * 100 : 0;
-    // Health factor: (col * 0.85) / debt
     const hf = amt > 0 ? (col * 0.85) / amt : 0;
     return { maxBorrow, utilizePct, hf, col, amt };
   }, [collateralInput, borrowInput, ltvPct]);
@@ -34,6 +33,39 @@ export function BorrowPanel() {
   const utilizationColor =
     preview.utilizePct <= 60 ? "#1D9E75" :
     preview.utilizePct <= 85 ? "#BA7517" : "#D85A30";
+
+  function parseError(e: any): string {
+    console.error("Borrow error full:", e);
+
+    const raw: string =
+      e?.cause?.reason ??
+      e?.cause?.shortMessage ??
+      e?.cause?.message ??
+      e?.reason ??
+      e?.shortMessage ??
+      e?.message ??
+      "";
+
+    // User cancelled in wallet
+    if (
+      raw.toLowerCase().includes("user rejected") ||
+      raw.toLowerCase().includes("user denied") ||
+      raw.toLowerCase().includes("rejected the request") ||
+      e?.code === 4001
+    ) {
+      return "Transaction cancelled.";
+    }
+
+    // Contract revert with a reason string
+    const revertMatch = raw.match(/reverted with reason string '(.+?)'/);
+    if (revertMatch) return revertMatch[1];
+
+    // viem shortMessage is usually clean enough
+    if (e?.shortMessage && e.shortMessage.length < 120) return e.shortMessage;
+
+    // Never show raw calldata
+    return "Transaction failed. Please try again.";
+  }
 
   async function handleBorrow() {
     setError("");
@@ -49,15 +81,7 @@ export function BorrowPanel() {
       setCollateralInput("");
       setBorrowInput("");
     } catch (e: any) {
-      const reason =
-        e?.cause?.reason ??
-        e?.cause?.message ??
-        e?.reason ??
-        e?.shortMessage ??
-        e?.message ??
-        "Transaction failed";
-      setError(reason);
-      console.error("Borrow error full:", e);
+      setError(parseError(e));
     } finally {
       setLoading(false);
     }
@@ -69,7 +93,7 @@ export function BorrowPanel() {
     try {
       await repay();
     } catch (e: any) {
-      setError(e?.reason ?? e?.message ?? "Transaction failed");
+      setError(parseError(e));
     } finally {
       setLoading(false);
     }

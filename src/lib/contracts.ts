@@ -8,7 +8,7 @@ export const CONTRACT_ADDRESSES = {
   vault:            "0x3cE7B2c783654A25a2C6b9b0101e8F0ac1Ea5d87", // ← replace with Vault v2 address after deploy
   yieldRouter:      "0xbEf7ABB0A7cDdf8C58260B9c3A06A34F8E8A91bf", // ← replace with YieldRouter v2 address after deploy
   predictionMarket: "0xD2FD0ad2b7Bf6F55DcAac01399237aBE556F4202",
-  lendingEngine:    "0xDAe38817392a968e363DFA0211566DECe2364C56",
+  lendingEngine:    "0x06068eB5d5BE9Ea45C3E6875FD2Af99AC80A7577",
 
   // Set this after deploying USYCYieldAdapter and receiving USYC allowlist approval.
   // While null, "Deploy idle USDC" button is disabled and the yield source
