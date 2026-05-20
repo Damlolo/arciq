@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { useTheme } from "../providers";
+import { useProtocol } from "../../hooks/useProtocol";
 import { Navbar } from "../../components/Navbar";
 import { ScoreCard } from "../../components/ScoreCard";
 import { VaultCard } from "../../components/VaultCard";
@@ -251,29 +252,72 @@ function BorrowTab() {
   );
 }
 
+type PredictSubTab = "markets" | "my-predictions";
+
 function PredictTab() {
+  const [subTab, setSubTab] = useState<PredictSubTab>("markets");
+  const { isDark } = useTheme();
+  const { score } = useProtocol();
+
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-      <div className="xl:col-span-2 space-y-4">
-        <div className="mb-2">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Prediction Markets</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Stake USDC on YES / NO outcomes. Correct predictions raise your ArcIQ score,
-            unlocking higher yield multipliers and borrow limits.
-          </p>
-        </div>
-        <MarketList />
+    <div className="space-y-5">
+      {/* ── Subtab pill bar ── */}
+      <div className={`flex gap-1 p-1 rounded-xl border w-fit transition-colors duration-300 ${isDark ? "bg-gray-900 border-gray-800" : "bg-gray-100 border-gray-200"}`}>
+        {(
+          [
+            { id: "markets", label: "Markets" },
+            { id: "my-predictions", label: "My Predictions" },
+          ] as { id: PredictSubTab; label: string }[]
+        ).map((s) => (
+          <button
+            key={s.id}
+            onClick={() => setSubTab(s.id)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              subTab === s.id
+                ? "bg-blue-600 text-white"
+                : isDark
+                ? "text-gray-400 hover:text-gray-200"
+                : "text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">My Predictions</h2>
-          <PredictionsTab />
+
+      {/* ── Markets subtab ── */}
+      {subTab === "markets" && (
+        <div className="space-y-4">
+          <div className="mb-2">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Prediction Markets</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Stake USDC on YES / NO outcomes. Correct predictions raise your ArcIQ score,
+              unlocking higher yield multipliers and borrow limits.
+            </p>
+          </div>
+          <MarketList />
         </div>
-        <div>
-          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Create Market</h2>
-          <CreateMarketPanel />
+      )}
+
+      {/* ── My Predictions subtab ── */}
+      {subTab === "my-predictions" && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">My Predictions</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Track your open positions, wins, losses, and claimable winnings.
+            </p>
+            <PredictionsTab />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Create Market</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Stake 1,000 USDC to launch your own prediction market.
+            </p>
+            <CreateMarketPanel score={score} dark={isDark} />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
