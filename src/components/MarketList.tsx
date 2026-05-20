@@ -92,7 +92,7 @@ function MarketCard({
 
   if (!m) {
     return (
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl animate-pulse h-52" />
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl animate-pulse h-[19rem]" />
     );
   }
 
@@ -281,7 +281,7 @@ function MarketCard({
 
       {/* ── Dropdown buy panel – slides down below the fixed card ── */}
       <div
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+        className={`relative z-10 overflow-hidden transition-all duration-300 ease-in-out ${
           expanded && isActive ? "max-h-[20rem] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
@@ -402,7 +402,7 @@ export function MarketList() {
         <span className="text-xs text-gray-600">{nextMarketId} markets</span>
       </div>
 
-      <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-xs text-blue-300">
+      <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300">
         💡 Predict correctly → ArcIQ score rises → higher yield multiplier + borrow limit
       </div>
 
@@ -410,7 +410,7 @@ export function MarketList() {
         <div className="text-center text-gray-600 py-8 text-sm">No markets yet</div>
       )}
 
-      <div className="grid grid-cols-3 gap-3 items-start">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
         {ids.map((id) => (
           <MarketCard
             key={id.toString()}
