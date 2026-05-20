@@ -1,290 +1,327 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useAccount } from "wagmi";
-import { ConnectButton } from "@/components/ConnectButton";
-import { ScoreCard } from "@/components/ScoreCard";
-import { VaultCard } from "@/components/VaultCard";
-import { LoanCard } from "@/components/LoanCard";
-import { MarketList } from "@/components/MarketList";
-import { BorrowPanel } from "@/components/BorrowPanel";
-import { ProfileCard } from "@/components/ProfileCard";
-import { LoopFlow } from "@/components/LoopFlow";
-import { PredictionsTab } from "@/components/PredictionsTab";
-import { CreateMarketPanel } from "@/components/CreateMarketPanel";
-import { NetworkGuard } from "@/components/NetworkGuard";
-import { LeaderboardTab } from "@/components/LeaderboardTab";
-import { AnalyticsTab } from "@/components/AnalyticsTab";
-import { useUSDCBalance, useReputation } from "@/hooks/useProtocol";
-import { useScoreSync } from "@/hooks/useSupabase";
-import { formatUSDC } from "@/lib/contracts";
-import { ThemeContext, useTheme } from "@/lib/theme";
 
-// ThemeContext and useTheme are defined in @/lib/theme
+import Link from "next/link";
+import Image from "next/image";
 
-type Tab = "DASHBOARD" | "PREDICT" | "MY PREDICTIONS" | "BORROW" | "CREATE MARKET" | "LEADERBOARD" | "ANALYTICS" | "FAUCET" | "PROFILE";
+// ─── Features ─────────────────────────────────────────────────────────────────
 
-// SVG icon components — monochrome, no emoji
-function SunIcon({ cls }: { cls: string }) {
-  return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/>
-    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-    <line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/>
-    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-  </svg>;
-}
-function MoonIcon({ cls }: { cls: string }) {
-  return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-  </svg>;
-}
-function LockIcon({ cls }: { cls: string }) {
-  return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-  </svg>;
-}
-function MenuIcon({ cls }: { cls: string }) {
-  return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
-  </svg>;
-}
-function CloseIcon({ cls }: { cls: string }) {
-  return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-  </svg>;
-}
+const FEATURES = [
+  {
+    color: "blue",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+      </svg>
+    ),
+    title: "ArcIQ Score",
+    desc: "Your on-chain reputation, built from prediction accuracy and protocol participation. Higher score = better terms on everything.",
+  },
+  {
+    color: "cyan",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+      </svg>
+    ),
+    title: "Prediction Markets",
+    desc: "Stake USDC on YES/NO outcomes across curated markets. Correct calls increase your score and unlock premium protocol benefits.",
+  },
+  {
+    color: "green",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75" />
+      </svg>
+    ),
+    title: "Collateralised Lending",
+    desc: "Borrow USDC at a flat 5% APR against your vault deposits. Your ArcIQ score determines your maximum loan-to-value ratio.",
+  },
+  {
+    color: "purple",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+    title: "Yield Engine",
+    desc: "Earn from borrow interest, prediction fees, and liquidation penalties. Elite predictors access a bonus pool ring-fenced just for them.",
+  },
+  {
+    color: "blue",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+      </svg>
+    ),
+    title: "Live Dashboard",
+    desc: "Track your ArcIQ in real time. See claimable yield, score progress, vault balances, and active loan positions at a glance.",
+  },
+  {
+    color: "cyan",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0H3" />
+      </svg>
+    ),
+    title: "Fully On-Chain",
+    desc: "All scores, loans, and yield distributions settle on Arc Network. No oracles, no admin keys — just transparent, verifiable code.",
+  },
+];
 
-function Sidebar({ tab, setTab, score, mobileOpen, setMobileOpen }: {
-  tab: Tab; setTab: (t: Tab) => void; score: number;
-  mobileOpen: boolean; setMobileOpen: (v: boolean) => void;
-}) {
-  const { dark, toggle } = useTheme();
-  const { address } = useAccount();
-  const { balance } = useUSDCBalance();
-  const canCreate = score >= 75;
+const TIERS = [
+  { name: "Beginner", range: "0 – 49",  mult: "1.0×", ltv: "50% LTV",  color: "slate",  featured: false },
+  { name: "Standard", range: "50 – 69", mult: "1.2×", ltv: "60% LTV",  color: "blue",   featured: false },
+  { name: "Advanced", range: "70 – 89", mult: "1.5×", ltv: "70% LTV",  color: "cyan",   featured: false },
+  { name: "Elite",    range: "90+",     mult: "2.0×", ltv: "85% LTV + bonus pool", color: "yellow", featured: true },
+];
 
-  const tabs: { id: Tab; locked?: boolean }[] = [
-    { id: "DASHBOARD" }, { id: "PREDICT" }, { id: "MY PREDICTIONS" },
-    { id: "BORROW" }, { id: "CREATE MARKET", locked: !canCreate },
-    { id: "LEADERBOARD" }, { id: "ANALYTICS" },
-    { id: "FAUCET" }, { id: "PROFILE" },
-  ];
+const STEPS = [
+  {
+    n: "01",
+    title: "Deposit USDC into the vault",
+    desc: "Your vault balance is the foundation. Deposits earn yield and can be locked as collateral for borrowing. Your yield multiplier starts at 1× and grows with your score.",
+  },
+  {
+    n: "02",
+    title: "Predict on markets to build your ArcIQ score",
+    desc: "Stake USDC on YES or NO outcomes. Every correct call pushes your score higher. Streaks multiply your gains. Wrong predictions cost a small fee — accuracy matters.",
+  },
+  {
+    n: "03",
+    title: "Borrow more and earn more as your score grows",
+    desc: "A higher ArcIQ unlocks a higher LTV on loans and a higher yield multiplier on vault deposits. Reach 90+ for the Elite tier and access the exclusive bonus yield pool.",
+  },
+];
 
-  const bg = dark ? "bg-gray-950 border-gray-800" : "bg-white border-gray-200";
-  const activeBtn = dark ? "bg-gray-800 text-white font-bold" : "bg-gray-100 text-gray-900 font-bold";
-  const inactiveBtn = dark ? "text-gray-500 hover:bg-gray-900 hover:text-gray-300" : "text-gray-400 hover:bg-gray-50 hover:text-gray-700";
-  const lockedBtn = dark ? "text-gray-700 cursor-not-allowed" : "text-gray-300 cursor-not-allowed";
-  const divider = dark ? "border-gray-800" : "border-gray-100";
+const featureIconBg: Record<string, string> = {
+  blue:   "bg-blue-500/15 text-blue-400",
+  cyan:   "bg-cyan-500/12 text-cyan-400",
+  green:  "bg-emerald-500/12 text-emerald-400",
+  purple: "bg-violet-500/12 text-violet-400",
+};
 
-  const handleTabClick = (t: Tab, locked?: boolean) => {
-    if (locked) return;
-    setTab(t);
-    setMobileOpen(false);
-  };
+const tierBadge: Record<string, string> = {
+  slate:  "bg-slate-500/15 text-slate-300",
+  blue:   "bg-blue-500/15 text-blue-400",
+  cyan:   "bg-cyan-500/15 text-cyan-400",
+  yellow: "bg-yellow-500/15 text-yellow-400",
+};
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function LandingPage() {
   return (
-    <>
-      {mobileOpen && <div className="fixed inset-0 bg-black/60 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />}
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-52 flex flex-col border-r transition-transform duration-200 ${bg} ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
-        {/* Logo */}
-        <div className={`h-20 flex items-center gap-3 px-4 border-b ${divider}`}>
-          <img src="/logo.png" alt="ArcIQ" className="w-12 h-12 rounded-xl object-cover shrink-0" />
-          <div className="min-w-0">
-            <div className={`font-bold text-base leading-none ${dark ? "text-white" : "text-gray-900"}`}>ArcIQ</div>
-            <div className="text-xs text-gray-400 mt-1">Arc Testnet</div>
-          </div>
-          <button onClick={() => setMobileOpen(false)} className={`ml-auto lg:hidden ${dark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"}`}>
-            <CloseIcon cls="w-4 h-4" />
-          </button>
-        </div>
+    <div className="min-h-screen bg-[#080b14] text-white overflow-x-hidden">
 
-        {/* Nav */}
-        <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-          {tabs.map(t => (
-            <button key={t.id} onClick={() => handleTabClick(t.id, t.locked)}
-              title={t.locked ? `ArcIQ score ≥ 75 required (yours: ${score}) · 1,000 USDC fee` : ""}
-              className={`w-full text-left px-3 py-2 rounded-lg text-xs tracking-wide transition-colors flex items-center justify-between gap-2 ${
-                tab === t.id ? activeBtn : t.locked ? lockedBtn : inactiveBtn
-              }`}>
-              <span>{t.id}</span>
-              {t.locked && <LockIcon cls="w-3 h-3 shrink-0 opacity-50" />}
-            </button>
+      <style>{`
+        @keyframes pulse-dot { 0%,100% { opacity:1 } 50% { opacity:0.35 } }
+      `}</style>
+
+      {/* ── Nav ── */}
+      <nav className="sticky top-0 z-50 flex items-center justify-between px-4 md:px-12 h-16 bg-[#080b14]/85 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="flex items-center gap-1.5">
+          <Image
+            src="/logo.png"
+            alt="ArcIQ Logo"
+            width={44}
+            height={44}
+            className="rounded-xl object-contain"
+          />
+          <div className="text-lg font-black tracking-tight">
+            Arc<span className="text-blue-400">IQ</span>
+          </div>
+        </div>
+        <div className="hidden md:flex items-center gap-8">
+          {["Features", "How it works", "Score tiers"].map((l) => (
+            <a key={l} href={`#${l.toLowerCase().replace(/ /g, "-")}`}
+              className="text-[13px] font-medium text-slate-400 hover:text-white transition-colors">
+              {l}
+            </a>
           ))}
-        </nav>
-
-        {/* Bottom */}
-        <div className={`px-2 py-3 border-t space-y-1.5 ${divider}`}>
-          {address && (
-            <div className={`px-3 py-2 rounded-lg text-xs ${dark ? "bg-gray-900 text-gray-400" : "bg-gray-50 text-gray-500"}`}>
-              <div className="font-medium truncate">{address.slice(0,6)}…{address.slice(-4)}</div>
-              <div className="mt-0.5 text-gray-400">{formatUSDC(balance)} USDC</div>
-            </div>
-          )}
-          <button onClick={toggle} className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors ${dark ? "text-gray-400 hover:bg-gray-900 hover:text-gray-300" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"}`}>
-            <span>{dark ? "Dark mode" : "Light mode"}</span>
-            {dark ? <MoonIcon cls="w-3.5 h-3.5" /> : <SunIcon cls="w-3.5 h-3.5" />}
-          </button>
-          <div className="w-full"><ConnectButton /></div>
         </div>
-      </aside>
-    </>
-  );
-}
+        <Link href="/dashboard"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-[13px] font-semibold px-4 py-2 rounded-xl transition-all hover:-translate-y-0.5">
+          Launch App
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+          </svg>
+        </Link>
+      </nav>
 
-export default function Home() {
-  const { isConnected, address } = useAccount();
-  const [dark, setDark] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("arciq-theme") === "dark";
-  });
-  const [tab, setTab] = useState<Tab>(() => {
-    if (typeof window === "undefined") return "DASHBOARD";
-    return (localStorage.getItem("arciq-tab") as Tab) ?? "DASHBOARD";
-  });
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const { score } = useReputation(address);
-  useScoreSync(); // auto-syncs score to Supabase leaderboard
+      {/* ── Hero ── */}
+      <section className="relative flex flex-col items-center justify-center text-center px-4 sm:px-6 pt-16 sm:pt-24 pb-20 sm:pb-32 overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[800px] h-[500px] rounded-full bg-blue-600/10 blur-3xl" />
+          <div className="absolute left-1/4 bottom-0 w-[400px] h-[300px] rounded-full bg-emerald-500/6 blur-3xl" />
+          <div className="absolute right-1/4 bottom-0 w-[400px] h-[300px] rounded-full bg-cyan-500/6 blur-3xl" />
+        </div>
 
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-    localStorage.setItem("arciq-theme", dark ? "dark" : "light");
-  }, [dark]);
+        <div className="relative inline-flex items-center gap-2.5 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-[12px] font-medium text-slate-300 mb-10">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ animation: "pulse-dot 2s ease-in-out infinite" }} />
+          Live on Arc Testnet · Chain ID 5042002 · Gas paid in USDC
+        </div>
 
-  const setTabPersisted = (t: Tab) => {
-    setTab(t);
-    localStorage.setItem("arciq-tab", t);
-  };
+        <h1 className="relative font-black tracking-tight leading-none mb-6" style={{ fontSize: "clamp(52px,9vw,96px)" }}>
+          Predict Smarter.<br />
+          <span className="text-blue-400">Borrow Better.</span><br />
+          <span className="text-cyan-400">Earn More.</span>
+        </h1>
 
-  const toggle = () => setDark(d => !d);
+        <p className="relative text-slate-400 max-w-lg leading-relaxed mb-14" style={{ fontSize: "clamp(15px,2vw,18px)" }}>
+          Your on-chain credit score, built from prediction accuracy. Forecast markets, raise your ArcIQ, and unlock higher borrow limits and yield multipliers.
+        </p>
 
-  if (!isConnected) return (
-    <ThemeContext.Provider value={{ dark, toggle }}>
-      <div className={`min-h-screen ${dark ? "bg-gray-950" : "bg-gray-50"}`}>
-        <LandingHero dark={dark} toggle={toggle} />
-      </div>
-    </ThemeContext.Provider>
-  );
+        <div className="relative flex flex-wrap items-center justify-center gap-4">
+          <Link href="/dashboard"
+            className="flex items-center gap-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-7 py-3.5 rounded-2xl transition-all hover:-translate-y-0.5 text-[15px]">
+            Launch App
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </Link>
+          <a href="#how-it-works"
+            className="flex items-center gap-2.5 text-slate-400 border border-white/10 hover:border-white/20 hover:text-white font-medium px-7 py-3.5 rounded-2xl transition-all hover:-translate-y-0.5 text-[15px]">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+            </svg>
+            How it works
+          </a>
+        </div>
+      </section>
 
-  return (
-    <ThemeContext.Provider value={{ dark, toggle }}>
-      <div className={`flex min-h-screen ${dark ? "bg-gray-950 text-white" : "bg-gray-50 text-gray-900"}`}>
-        <Sidebar tab={tab} setTab={setTabPersisted} score={score} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
-        <div className="flex-1 flex flex-col min-w-0">
-          <NetworkGuard />
-          {/* Mobile topbar */}
-          <div className={`lg:hidden h-16 flex items-center justify-between px-4 border-b relative ${dark ? "bg-gray-950 border-gray-800" : "bg-white border-gray-200"}`}>
-            <button onClick={() => setMobileOpen(true)} className={dark ? "text-gray-400" : "text-gray-500"}>
-              <MenuIcon cls="w-5 h-5" />
-            </button>
-            {/* Centered logo only — no text */}
-            <div className="absolute left-1/2 -translate-x-1/2">
-              <img src="/logo.png" alt="ArcIQ" className="w-11 h-11 rounded-xl object-cover" />
+      {/* ── Stats strip ── */}
+      <div className="border-y border-white/[0.06] bg-[#0d1220]">
+        <div className="max-w-5xl mx-auto px-4 py-8 grid grid-cols-2 md:grid-cols-4 gap-0 divide-y md:divide-y-0 divide-x-0 md:divide-x divide-white/[0.06]">
+          {[
+            { val: "5%",   label: "Fixed borrow APR" },
+            { val: "2×",   label: "Max yield multiplier" },
+            { val: "90+",  label: "Score for elite tier" },
+            { val: "100%", label: "On-chain & transparent" },
+          ].map(({ val, label }) => (
+            <div key={label} className="text-center px-8 py-2">
+              <div className="text-3xl font-black tracking-tight text-blue-400">{val}</div>
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 mt-1">{label}</div>
             </div>
-            <ConnectButton />
-          </div>
-          <main className="flex-1 overflow-y-auto">
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-              <TabContent tab={tab} score={score} dark={dark} />
-            </div>
-          </main>
+          ))}
         </div>
       </div>
-    </ThemeContext.Provider>
-  );
-}
 
-function SectionHead({ title, dark }: { title: string; dark: boolean }) {
-  return <h1 className={`text-base font-bold mb-5 uppercase tracking-wide ${dark ? "text-gray-300" : "text-gray-600"}`}>{title}</h1>;
-}
+      {/* ── Features ── */}
+      <section id="features" className="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-24">
+        <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-blue-400 mb-4">Core features</div>
+        <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-4">
+          Everything you need.<br />Nothing you don't.
+        </h2>
+        <p className="text-slate-400 text-base leading-relaxed max-w-lg mb-14">
+          ArcIQ combines a prediction market, DeFi lending, and an on-chain reputation layer into one unified protocol.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {FEATURES.map((f) => (
+            <div key={f.title}
+              className="bg-[#0d1220] border border-white/[0.06] hover:border-white/[0.12] rounded-2xl p-8 transition-all hover:-translate-y-1">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-5 ${featureIconBg[f.color]}`}>
+                {f.icon}
+              </div>
+              <div className="text-[16px] font-bold mb-2.5">{f.title}</div>
+              <div className="text-[13px] text-slate-400 leading-relaxed">{f.desc}</div>
+            </div>
+          ))}
+        </div>
+      </section>
 
-function TabContent({ tab, score, dark }: { tab: Tab; score: number; dark: boolean }) {
-  if (tab === "DASHBOARD") return (
-    <div className="space-y-5">
-      <SectionHead title="Dashboard" dark={dark} />
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <VaultCard /><ScoreCard /><LoanCard />
-      </div>
-      <div>
-        <p className={`text-xs font-bold uppercase tracking-wide mb-3 ${dark ? "text-gray-500" : "text-gray-400"}`}>Active Markets</p>
-        <MarketList viewOnly />
-      </div>
-    </div>
-  );
-  if (tab === "PREDICT") return <div><SectionHead title="Predict" dark={dark} /><MarketList /></div>;
-  if (tab === "MY PREDICTIONS") return <div><SectionHead title="My Predictions" dark={dark} /><PredictionsTab /></div>;
-  if (tab === "BORROW") return <div><SectionHead title="Borrow" dark={dark} /><BorrowPanel /></div>;
-  if (tab === "CREATE MARKET") return <div><SectionHead title="Create Market" dark={dark} /><CreateMarketPanel score={score} dark={dark} /></div>;
-  if (tab === "LEADERBOARD") return <div><SectionHead title="Leaderboard" dark={dark} /><LeaderboardTab /></div>;
-  if (tab === "ANALYTICS") return <div><SectionHead title="Analytics" dark={dark} /><AnalyticsTab /></div>;
-  if (tab === "FAUCET") return <div><SectionHead title="Testnet Faucet" dark={dark} /><FaucetTab dark={dark} /></div>;
-  if (tab === "PROFILE") return <div><SectionHead title="Profile" dark={dark} /><ProfileCard /></div>;
-  return null;
-}
+      {/* ── How it works ── */}
+      <section id="how-it-works" className="max-w-6xl mx-auto px-4 sm:px-6 pb-14 sm:pb-24">
+        <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-blue-400 mb-4">How it works</div>
+        <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-4">Three steps to smarter DeFi.</h2>
+        <p className="text-slate-400 text-base leading-relaxed max-w-lg mb-14">
+          ArcIQ rewards accuracy, not just capital. The more you predict correctly, the better your terms.
+        </p>
+        <div className="flex flex-col gap-3">
+          {STEPS.map((s) => (
+            <div key={s.n}
+              className="flex gap-6 items-start bg-[#0d1220] border border-white/[0.06] hover:border-white/[0.12] rounded-2xl p-8 transition-all">
+              <div className="shrink-0 w-10 h-10 rounded-xl bg-blue-500/12 border border-blue-500/20 flex items-center justify-center text-[13px] font-black text-blue-400">
+                {s.n}
+              </div>
+              <div>
+                <div className="text-[16px] font-bold mb-2">{s.title}</div>
+                <div className="text-[13px] text-slate-400 leading-relaxed">{s.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
-function FaucetTab({ dark }: { dark: boolean }) {
-  const card = dark ? "bg-gray-900 border-gray-800" : "bg-white border-gray-100";
-  const txt = dark ? "text-gray-400" : "text-gray-500";
-  const info = dark ? "bg-gray-800 text-gray-400" : "bg-gray-50 text-gray-500";
-  const net = dark ? "bg-gray-800 text-gray-500 font-mono" : "bg-gray-50 text-gray-500 font-mono";
-  return (
-    <div className={`rounded-xl border p-8 text-center ${card}`}>
-      <div className="flex justify-center mb-4">
-        <img src="/usdc-logo.png" alt="USDC" className="w-12 h-12 rounded-full" />
-      </div>
-      <h2 className={`text-base font-bold mb-2 ${dark ? "text-white" : "text-gray-900"}`}>Get Testnet USDC</h2>
-      <p className={`text-sm mb-6 max-w-sm mx-auto ${txt}`}>
-        ArcIQ runs on Arc Testnet. USDC is the native gas token — get free testnet USDC from the Circle faucet to start predicting and borrowing.
-      </p>
-      <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer"
-        className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors ${dark ? "bg-gray-800 text-gray-200 hover:bg-gray-700 border border-gray-700" : "bg-gray-900 text-white hover:bg-gray-700"}`}>
-        Open Circle Faucet
-        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-      </a>
-      <div className={`mt-8 text-left rounded-lg p-4 space-y-1.5 text-sm ${info}`}>
-        <p className={`font-semibold mb-2 ${dark ? "text-gray-300" : "text-gray-600"}`}>Steps</p>
-        {["1. Click the button above","2. Select Arc Testnet from the network dropdown","3. Paste your wallet address","4. Request USDC — arrives in seconds","5. Deposit into the Vault to start predicting"].map(s => (
-          <p key={s}>{s}</p>
-        ))}
-      </div>
-      <div className={`mt-3 rounded-lg p-3 text-xs text-left ${net}`}>
-        Chain ID: 5042002 · RPC: https://rpc.testnet.arc.network · Explorer: https://testnet.arcscan.app
-      </div>
-    </div>
-  );
-}
+      {/* ── Score tiers ── */}
+      <section id="score-tiers" className="max-w-6xl mx-auto px-4 sm:px-6 pb-14 sm:pb-24">
+        <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-blue-400 mb-4">Score tiers</div>
+        <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-4">Your score, your terms.</h2>
+        <p className="text-slate-400 text-base leading-relaxed max-w-lg mb-14">
+          Hit 50 for Standard, 70 for Advanced, and 90+ for Elite — each tier unlocks better multipliers and borrow limits.
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {TIERS.map((t) => (
+            <div key={t.name}
+              className={`rounded-2xl p-6 text-center border transition-all hover:-translate-y-1
+                ${t.featured
+                  ? "bg-blue-500/6 border-blue-500/30"
+                  : "bg-[#0d1220] border-white/[0.06] hover:border-white/[0.12]"
+                }`}>
+              <div className={`inline-block text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full mb-3 ${tierBadge[t.color]}`}>
+                {t.name}
+              </div>
+              <div className="text-[12px] text-slate-500 mb-2">{t.range}</div>
+              <div className="text-[30px] font-black tracking-tight text-white mb-1">{t.mult}</div>
+              <div className="text-[11px] text-slate-500 mb-3">Yield multiplier</div>
+              <div className="text-[12px] text-slate-400 pt-3 border-t border-white/[0.06]">{t.ltv}</div>
+            </div>
+          ))}
+        </div>
+      </section>
 
-function LandingHero({ dark, toggle }: { dark: boolean; toggle: () => void }) {
-  const card = dark ? "bg-gray-900 border-gray-800" : "bg-white border-gray-100";
-  const txt = dark ? "text-gray-400" : "text-gray-500";
-  return (
-    <div className="text-center py-16 px-4">
-      <div className="flex justify-end max-w-4xl mx-auto mb-6">
-        <button onClick={toggle} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs border transition-colors ${dark ? "bg-gray-900 text-gray-400 border-gray-800 hover:bg-gray-800" : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"}`}>
-          {dark ? <><MoonIcon cls="w-3 h-3" /> Dark</> : <><SunIcon cls="w-3 h-3" /> Light</>}
-        </button>
-      </div>
-      <div className="flex justify-center mb-6">
-        <img src="/logo.png" alt="ArcIQ" className="w-28 h-28 rounded-2xl object-cover shadow-lg" />
-      </div>
-      <div className={`inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-full mb-5 ${dark ? "bg-gray-900 text-gray-400 border border-gray-800" : "bg-gray-100 text-gray-500"}`}>
-        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-        Live on Arc Network
-      </div>
-      <h1 className={`text-4xl font-bold mb-3 ${dark ? "text-white" : "text-gray-900"}`}>Predict smarter.<br />Borrow better.</h1>
-      <p className={`text-base max-w-md mx-auto mb-8 ${txt}`}>Stake USDC, forecast crypto prices, build your ArcIQ score, and unlock better loan-to-value ratios.</p>
-      <LoopFlow />
-      <div className="mt-8"><ConnectButton size="lg" /></div>
-      <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto text-left">
-        {[
-          { title: "Predict", desc: "YES/NO markets on BTC, ETH, SOL and more." },
-          { title: "Score", desc: "Win predictions to grow your ArcIQ score via EMA." },
-          { title: "Borrow", desc: "Higher score unlocks higher LTV and more borrowing power." },
-        ].map(f => (
-          <div key={f.title} className={`rounded-xl border p-5 ${card}`}>
-            <div className={`font-bold mb-1 text-sm ${dark ? "text-white" : "text-gray-900"}`}>{f.title}</div>
-            <div className={`text-sm ${txt}`}>{f.desc}</div>
+      {/* ── CTA ── */}
+      <section className="px-4 sm:px-6 pb-14 sm:pb-24">
+        <div className="max-w-2xl mx-auto relative bg-[#0d1220] border border-blue-500/20 rounded-3xl p-8 sm:p-16 text-center overflow-hidden">
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] rounded-full bg-blue-600/10 blur-3xl" />
           </div>
-        ))}
-      </div>
+          <h2 className="relative text-4xl md:text-5xl font-black tracking-tight mb-4">
+            Ready to predict<br /><span className="text-blue-400">smarter?</span>
+          </h2>
+          <p className="relative text-slate-400 text-[15px] leading-relaxed mb-10">
+            Get testnet USDC, deposit into the vault, and start building your ArcIQ score today. The protocol is live on Arc Testnet.
+          </p>
+          <div className="relative flex flex-wrap items-center justify-center gap-4">
+            <Link href="/dashboard"
+              className="flex items-center gap-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-7 py-3.5 rounded-2xl transition-all hover:-translate-y-0.5 text-[15px]">
+              Launch App
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </Link>
+            <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2.5 text-slate-400 border border-white/10 hover:border-white/20 hover:text-white font-medium px-7 py-3.5 rounded-2xl transition-all hover:-translate-y-0.5 text-[15px]">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 2.25c0 0-6.75 7.313-6.75 11.25a6.75 6.75 0 0013.5 0C18.75 9.563 12 2.25 12 2.25z" />
+              </svg>
+              Get Testnet USDC
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Footer ── */}
+      <footer className="border-t border-white/[0.06] px-4 md:px-12 py-6 sm:py-8 flex flex-col md:flex-row items-center justify-between gap-3 text-[12px] text-slate-500">
+        <div className="flex items-center gap-2">
+          <Image src="/logo.png" alt="ArcIQ" width={28} height={28} className="rounded-lg object-contain" />
+          <span className="font-black text-sm text-white">Arc<span className="text-blue-400">IQ</span></span>
+        </div>
+        <div>Built on Arc Network · Chain ID 5042002 ·{" "}
+          <a href="https://testnet.arcscan.app" target="_blank" rel="noopener noreferrer"
+            className="hover:text-slate-300 underline">ArcScan ↗</a>
+        </div>
+      </footer>
+
     </div>
   );
 }

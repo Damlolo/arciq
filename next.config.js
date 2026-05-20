@@ -2,8 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   typescript: {
-    // Ignore TypeScript errors during build
-    // Type safety is enforced locally via IDE
     ignoreBuildErrors: true,
   },
   eslint: {
@@ -15,6 +13,14 @@ const nextConfig = {
       net: false,
       tls: false,
     };
+
+    // Stub out missing optional native/dev dependencies
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@react-native-async-storage/async-storage": false,
+      "pino-pretty": false,
+    };
+
     return config;
   },
 };

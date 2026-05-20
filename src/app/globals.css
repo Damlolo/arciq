@@ -2,28 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  * {
-    box-sizing: border-box;
-  }
+/* ── Scrollbars ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+html { scroll-behavior: smooth; }
 
-  html {
-    -webkit-font-smoothing: antialiased;
-  }
+/* Remove number input arrows */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
 
-  input[type="number"]::-webkit-inner-spin-button,
-  input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
+/* ─────────────────────────────────────────────────────────────
+   LIGHT MODE — applied when <html class="light"> is set
+   Overrides all the hardcoded dark Tailwind classes used in
+   the component library (bg-gray-900, bg-gray-800, etc.)
+───────────────────────────────────────────────────────────── */
 
-  input[type="number"] {
-    -moz-appearance: textfield;
-  }
+html.light body {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
 }
 
-@layer utilities {
-  .animate-pulse-slow {
-    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
+/* Card surfaces */
+html.light .bg-gray-950 { background-color: #f1f5f9 !important; }
+html.light .bg-gray-900 { background-color: #ffffff !important; }
+html.light .bg-gray-800 { background-color: #f1f5f9 !important; }
+html.light .bg-gray-800\/60 { background-color: rgba(241,245,249,0.8) !important; }
+
+/* Borders */
+html.light .border-gray-800 { border-color: #e2e8f0 !important; }
+html.light .border-gray-700 { border-color: #cbd5e1 !important; }
+
+/* Text */
+html.light .text-white       { color: #0f172a !important; }
+html.light .text-gray-100    { color: #1e293b !important; }
+html.light .text-gray-200    { color: #334155 !important; }
+html.light .text-gray-300    { color: #475569 !important; }
+html.light .text-gray-400    { color: #64748b !important; }
+html.light .text-gray-500    { color: #94a3b8 !important; }
+html.light .text-gray-600    { color: #94a3b8 !important; }
+
+/* Navbar */
+html.light .bg-gray-950\/80  { background-color: rgba(255,255,255,0.9) !important; }
+html.light nav               { border-bottom-color: #e2e8f0 !important; }
+
+/* Tab bar */
+html.light .bg-white\/90     { background-color: rgba(255,255,255,0.95) !important; }
+html.light .bg-gray-950\/90  { background-color: rgba(255,255,255,0.95) !important; }
+
+/* Inputs */
+html.light input[type="text"],
+html.light input[type="number"] {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
 }
+html.light input::placeholder { color: #94a3b8 !important; }
+
+/* Buttons with gray backgrounds */
+html.light .bg-gray-700,
+html.light .hover\:bg-gray-700:hover { background-color: #e2e8f0 !important; }
+html.light .bg-gray-800.rounded-xl,
+html.light button.bg-gray-800 {
+  background-color: #e2e8f0 !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Scrollbar in light mode */
+html.light ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+html.light ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }

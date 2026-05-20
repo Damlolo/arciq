@@ -1,179 +1,235 @@
-// Arc Network — ArcIQ Protocol
-// Chain ID: 5042002 | Explorer: https://testnet.arcscan.app
+// ─── Contract addresses ───────────────────────────────────────────────────────
+// Update vault, yieldRouter, and usycAdapter after running deploy-v2-upgrades.ts
+// Leave usycAdapter as null until deployment is complete.
 
-export const ARC_USDC_ADDRESS = "0x3600000000000000000000000000000000000000" as const;
+export const CONTRACT_ADDRESSES = {
+  usdc:             "0x3600000000000000000000000000000000000000",
+  reputationEngine: "0xa67e9f3922ce7E5c72779795823249803A73C817",
+  vault:            "0x3cE7B2c783654A25a2C6b9b0101e8F0ac1Ea5d87", // ← replace with Vault v2 address after deploy
+  yieldRouter:      "0xbEf7ABB0A7cDdf8C58260B9c3A06A34F8E8A91bf", // ← replace with YieldRouter v2 address after deploy
+  predictionMarket: "0xD2FD0ad2b7Bf6F55DcAac01399237aBE556F4202",
+  lendingEngine:    "0xDAe38817392a968e363DFA0211566DECe2364C56",
 
-export const CONTRACTS = {
-  usdc:             ARC_USDC_ADDRESS,
-  vault:            "0xF29E0FE8241979A6BC7e80215d9cB298F1b88c46",
-  reputationEngine: "0xc125BBdD1829eC762f706e3DBC56b51B30d1f31f",
-  predictionMarket: "0x07eFe12A668F1d4Eca51f2F0ee8ce6218EC891a5",
-  lendingEngine:    "0xD822A9f8edC6C8372cB5D7F3Ac029e34C110b810",
+  // Set this after deploying USYCYieldAdapter and receiving USYC allowlist approval.
+  // While null, "Deploy idle USDC" button is disabled and the yield source
+  // stream shows "Coming soon" messaging.
+  usycAdapter:      null as string | null,
+
+  // Arc Testnet USYC token (for balance display)
+  usyc:             "0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C",
+};
+
+// ─── Arc Testnet chain config ─────────────────────────────────────────────────
+
+export const ARC_TESTNET = {
+  id: 5042002,
+  name: "Arc Testnet",
+  network: "arcTestnet",
+  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 6 },
+  rpcUrls: {
+    default: { http: ["https://rpc.testnet.arc.network"] },
+    public:  { http: ["https://rpc.testnet.arc.network"] },
+  },
+  blockExplorers: {
+    default: { name: "ArcScan", url: "https://testnet.arcscan.app" },
+  },
 } as const;
 
-export const CHAIN_ID = 5042002;
-export const ARC_EXPLORER = "https://testnet.arcscan.app";
-export const ARC_FAUCET   = "https://faucet.circle.com";
+// ─── ABIs (object format required by wagmi v2 / viem) ────────────────────────
 
-// ── Proper ABI objects (not human-readable strings) ───────────────────────
+// VAULT v2 ABI
+// Key changes from v1:
+//   - "yieldAccrued" removed — replaced by "earned" and "earnedWithMultiplier"
+//   - "totalFreeBalance" added (used by YieldKeeper and deploy threshold logic)
+//   - "totalEliteDeposits" added (O(1) elite pool tracking)
+//   - "rewardPerTokenStored" added (useful for frontend progress / debug)
+export const VAULT_ABI = [
+  // Write
+  { name: "deposit",               type: "function", stateMutability: "nonpayable", inputs: [{ name: "amount",  type: "uint256" }], outputs: [] },
+  { name: "withdraw",              type: "function", stateMutability: "nonpayable", inputs: [{ name: "amount",  type: "uint256" }], outputs: [] },
+  { name: "claimYield",            type: "function", stateMutability: "nonpayable", inputs: [],                                     outputs: [] },
+  // Read — user
+  { name: "deposits",              type: "function", stateMutability: "view", inputs: [{ name: "", type: "address" }], outputs: [{ type: "uint256" }] },
+  { name: "lockedCollateral",      type: "function", stateMutability: "view", inputs: [{ name: "", type: "address" }], outputs: [{ type: "uint256" }] },
+  { name: "freeBalance",           type: "function", stateMutability: "view", inputs: [{ name: "", type: "address" }], outputs: [{ type: "uint256" }] },
+  // v2: replaces "yieldAccrued" — raw base yield before multiplier
+  { name: "earned",                type: "function", stateMutability: "view", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256" }] },
+  // v2: yield after applying the user's current reputation multiplier — use this for display
+  { name: "earnedWithMultiplier",  type: "function", stateMutability: "view", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256" }] },
+  // Read — global
+  { name: "totalDeposits",         type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "totalLocked",           type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  // v2: free balance across all depositors (totalDeposits - totalLocked)
+  { name: "totalFreeBalance",      type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "totalYieldDistributed", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  // v2: running total of deposits from elite users (score >= 90) — O(1)
+  { name: "totalEliteDeposits",    type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  // v2: monotonically increasing accumulator — useful for debug / progress bars
+  { name: "rewardPerTokenStored",  type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+] as const;
+
+// YIELD ROUTER v2 ABI
+// Key changes from v1:
+//   - "totalLiquidationFeesCollected" renamed to "totalLiquidationFeesReceived"
+//     (matches the actual v2 contract storage variable name)
+//   - "secondsUntilNextDistribution" added — use for countdown timer display
+export const YIELD_ROUTER_ABI = [
+  // Write
+  { name: "deployToSource",  type: "function", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { name: "distribute",      type: "function", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { name: "seedYield",       type: "function", stateMutability: "nonpayable", inputs: [{ name: "amount", type: "uint256" }], outputs: [] },
+  { name: "claimEliteBonus", type: "function", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  // Read — live state
+  { name: "pendingTotal",                   type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "eliteBonusPool",                 type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "estimatedApy",                   type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "lastDistributionTimestamp",      type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  // v2: seconds until distribute() is callable again — 0 means callable now
+  { name: "secondsUntilNextDistribution",   type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "deployedToSource",               type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  // Read — lifetime totals
+  { name: "totalDistributedToVault",        type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "totalDistributedToTreasury",     type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "totalBorrowInterestReceived",    type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  // FIXED: was "totalLiquidationFeesCollected" in v1 — actual contract var is "totalLiquidationFeesReceived"
+  { name: "totalLiquidationFeesReceived",   type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "totalPredictionFeesReceived",    type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "totalExternalYieldHarvested",    type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  // Read — pending breakdown (useful for analytics)
+  { name: "pendingBorrowInterest",          type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "pendingLiquidationFees",         type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "pendingPredictionFees",          type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+] as const;
+
+// USYC ADAPTER ABI (read-only — the frontend only needs to display stats)
+export const USYC_ADAPTER_ABI = [
+  { name: "totalDeposited",      type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "usycPrincipalShares", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "pendingYield",        type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "apyBps",              type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+] as const;
+
+export const REPUTATION_ENGINE_ABI = [
+  { name: "getScore",        type: "function", stateMutability: "view", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256" }] },
+  { name: "yieldMultiplier", type: "function", stateMutability: "view", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256" }] },
+  { name: "ltvMultiplier",   type: "function", stateMutability: "view", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256" }] },
+  { name: "isElite",         type: "function", stateMutability: "view", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "bool"    }] },
+  { name: "hasScore",        type: "function", stateMutability: "view", inputs: [{ name: "",     type: "address" }], outputs: [{ type: "bool"    }] },
+] as const;
+
+export const PREDICTION_MARKET_ABI = [
+  { name: "nextMarketId",     type: "function", stateMutability: "view",       inputs: [],                                                                              outputs: [{ type: "uint256" }] },
+  { name: "predict",          type: "function", stateMutability: "nonpayable", inputs: [{ name: "marketId", type: "uint256" }, { name: "yes", type: "bool" }, { name: "amount", type: "uint256" }], outputs: [] },
+  { name: "claimWinnings",    type: "function", stateMutability: "nonpayable", inputs: [{ name: "marketId", type: "uint256" }],                                        outputs: [] },
+  { name: "updateReputation", type: "function", stateMutability: "nonpayable", inputs: [{ name: "marketId", type: "uint256" }, { name: "user", type: "address" }],     outputs: [] },
+  { name: "previewWinnings",  type: "function", stateMutability: "view",       inputs: [{ name: "id",       type: "uint256" }, { name: "user", type: "address" }],     outputs: [{ type: "uint256" }] },
+  {
+    name: "getMarket", type: "function", stateMutability: "view",
+    inputs: [{ name: "id", type: "uint256" }],
+    outputs: [{ type: "tuple", components: [
+      { name: "question", type: "string"  },
+      { name: "endTime",  type: "uint256" },
+      { name: "resolved", type: "bool"    },
+      { name: "outcome",  type: "bool"    },
+      { name: "yesPool",  type: "uint256" },
+      { name: "noPool",   type: "uint256" },
+      { name: "feePool",  type: "uint256" },
+    ]}],
+  },
+  {
+    name: "getPosition", type: "function", stateMutability: "view",
+    inputs: [{ name: "id", type: "uint256" }, { name: "user", type: "address" }],
+    outputs: [{ type: "tuple", components: [
+      { name: "yesStake", type: "uint256" },
+      { name: "noStake",  type: "uint256" },
+      { name: "claimed",  type: "bool"    },
+    ]}],
+  },
+] as const;
+
+export const LENDING_ENGINE_ABI = [
+  { name: "borrow",          type: "function", stateMutability: "nonpayable", inputs: [{ name: "collateralAmount", type: "uint256" }, { name: "borrowAmount", type: "uint256" }], outputs: [] },
+  { name: "repay",           type: "function", stateMutability: "nonpayable", inputs: [],                                                                                         outputs: [] },
+  { name: "liquidate",       type: "function", stateMutability: "nonpayable", inputs: [{ name: "borrower", type: "address" }],                                                   outputs: [] },
+  { name: "borrowLimit",     type: "function", stateMutability: "view",       inputs: [{ name: "user", type: "address" }, { name: "collateral", type: "uint256" }],              outputs: [{ type: "uint256" }] },
+  { name: "accruedInterest", type: "function", stateMutability: "view",       inputs: [{ name: "user", type: "address" }],                                                       outputs: [{ type: "uint256" }] },
+  { name: "healthFactor",    type: "function", stateMutability: "view",       inputs: [{ name: "user", type: "address" }],                                                       outputs: [{ type: "uint256" }] },
+  { name: "isLiquidatable",  type: "function", stateMutability: "view",       inputs: [{ name: "user", type: "address" }],                                                       outputs: [{ type: "bool"    }] },
+  { name: "totalBorrowed",   type: "function", stateMutability: "view",       inputs: [],                                                                                         outputs: [{ type: "uint256" }] },
+  {
+    name: "loans", type: "function", stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ type: "tuple", components: [
+      { name: "principal",  type: "uint256" },
+      { name: "collateral", type: "uint256" },
+      { name: "startTime",  type: "uint256" },
+      { name: "active",     type: "bool"    },
+    ]}],
+  },
+] as const;
 
 export const ERC20_ABI = [
-  { name: "approve", type: "function", stateMutability: "nonpayable",
-    inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }],
-    outputs: [{ name: "", type: "bool" }] },
-  { name: "allowance", type: "function", stateMutability: "view",
-    inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }] },
-  { name: "balanceOf", type: "function", stateMutability: "view",
-    inputs: [{ name: "account", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }] },
-  { name: "decimals", type: "function", stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint8" }] },
-  { name: "transfer", type: "function", stateMutability: "nonpayable",
-    inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }],
-    outputs: [{ name: "", type: "bool" }] },
+  { name: "balanceOf", type: "function", stateMutability: "view",       inputs: [{ name: "account", type: "address" }],                                        outputs: [{ type: "uint256" }] },
+  { name: "allowance", type: "function", stateMutability: "view",       inputs: [{ name: "owner",   type: "address" }, { name: "spender", type: "address" }],  outputs: [{ type: "uint256" }] },
+  { name: "approve",   type: "function", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount",  type: "uint256"  }], outputs: [{ type: "bool"    }] },
+  { name: "transfer",  type: "function", stateMutability: "nonpayable", inputs: [{ name: "to",      type: "address" }, { name: "amount",  type: "uint256"  }], outputs: [{ type: "bool"    }] },
+  { name: "decimals",  type: "function", stateMutability: "view",       inputs: [],                                                                             outputs: [{ type: "uint8"   }] },
 ] as const;
 
-export const VAULT_ABI = [
-  { name: "deposit", type: "function", stateMutability: "nonpayable",
-    inputs: [{ name: "amount", type: "uint256" }], outputs: [] },
-  { name: "withdraw", type: "function", stateMutability: "nonpayable",
-    inputs: [{ name: "amount", type: "uint256" }], outputs: [] },
-  { name: "getCollateral", type: "function", stateMutability: "view",
-    inputs: [{ name: "user", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }] },
-  { name: "freeCollateral", type: "function", stateMutability: "view",
-    inputs: [{ name: "user", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }] },
-  { name: "locked", type: "function", stateMutability: "view",
-    inputs: [{ name: "user", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }] },
-] as const;
-
-export const REPUTATION_ABI = [
-  { name: "getScore", type: "function", stateMutability: "view",
-    inputs: [{ name: "user", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }] },
-  { name: "getLTVMultiplier", type: "function", stateMutability: "view",
-    inputs: [{ name: "user", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }] },
-  { name: "getStats", type: "function", stateMutability: "view",
-    inputs: [{ name: "user", type: "address" }],
-    outputs: [
-      { name: "totalPredictions", type: "uint256" },
-      { name: "wins", type: "uint256" },
-      { name: "score", type: "uint256" },
-      { name: "ltvMultiplier", type: "uint256" },
-    ] },
-] as const;
-
-export const MARKET_ABI = [
-  { name: "marketCount", type: "function", stateMutability: "view",
-    inputs: [], outputs: [{ name: "", type: "uint256" }] },
-  { name: "getMarket", type: "function", stateMutability: "view",
-    inputs: [{ name: "id", type: "uint256" }],
-    outputs: [{
-      name: "", type: "tuple",
-      components: [
-        { name: "question", type: "string" },
-        { name: "endTime", type: "uint256" },
-        { name: "resolved", type: "bool" },
-        { name: "outcome", type: "bool" },
-        { name: "yesPool", type: "uint256" },
-        { name: "noPool", type: "uint256" },
-        { name: "totalFees", type: "uint256" },
-      ],
-    }] },
-  { name: "getPosition", type: "function", stateMutability: "view",
-    inputs: [{ name: "id", type: "uint256" }, { name: "user", type: "address" }],
-    outputs: [{
-      name: "", type: "tuple",
-      components: [
-        { name: "yesStake", type: "uint256" },
-        { name: "noStake", type: "uint256" },
-        { name: "claimed", type: "bool" },
-      ],
-    }] },
-  { name: "getPayout", type: "function", stateMutability: "view",
-    inputs: [{ name: "id", type: "uint256" }, { name: "user", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }] },
-  { name: "predict", type: "function", stateMutability: "nonpayable",
-    inputs: [
-      { name: "id", type: "uint256" },
-      { name: "side", type: "bool" },
-      { name: "amount", type: "uint256" },
-    ], outputs: [] },
-  { name: "claimWinnings", type: "function", stateMutability: "nonpayable",
-    inputs: [{ name: "id", type: "uint256" }], outputs: [] },
-] as const;
-
-export const LENDING_ABI = [
-  { name: "maxBorrow", type: "function", stateMutability: "view",
-    inputs: [{ name: "user", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }] },
-  { name: "borrow", type: "function", stateMutability: "nonpayable",
-    inputs: [{ name: "amount", type: "uint256" }], outputs: [] },
-  { name: "repay", type: "function", stateMutability: "nonpayable",
-    inputs: [], outputs: [] },
-  { name: "getLoan", type: "function", stateMutability: "view",
-    inputs: [{ name: "user", type: "address" }],
-    outputs: [
-      { name: "principal", type: "uint256" },
-      { name: "interest", type: "uint256" },
-      { name: "totalDue", type: "uint256" },
-      { name: "lockedCollateral", type: "uint256" },
-      { name: "health", type: "uint256" },
-    ] },
-  { name: "accruedInterest", type: "function", stateMutability: "view",
-    inputs: [{ name: "user", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }] },
-  { name: "healthFactor", type: "function", stateMutability: "view",
-    inputs: [{ name: "user", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }] },
-] as const;
-
-// ── Helpers ───────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 export const USDC_DECIMALS = 6;
 
-export function formatUSDC(wei: bigint): string {
-  return (Number(wei) / 1e6).toLocaleString("en-US", {
+export function formatUsdc(raw: bigint): string {
+  const n = Number(raw) / 10 ** USDC_DECIMALS;
+  return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  });
+  }).format(n);
 }
 
-export function parseUSDC(dollars: string): bigint {
-  return BigInt(Math.round(parseFloat(dollars) * 1e6));
+// Alias kept for AnalyticsTab which imports as formatUSDC (capital C)
+export const formatUSDC = formatUsdc;
+
+export function parseUsdc(human: string): bigint {
+  return BigInt(Math.round(parseFloat(human) * 10 ** USDC_DECIMALS));
 }
 
-export function scoreToMultiplier(score: number): string {
-  if (score >= 90) return "1.4x";
-  if (score >= 80) return "1.3x";
-  if (score >= 70) return "1.2x";
-  if (score >= 60) return "1.1x";
-  return "1.0x";
+export function yieldMultiplierLabel(score: number): string {
+  if (score >= 90) return "1.6×";
+  if (score >= 80) return "1.4×";
+  if (score >= 70) return "1.2×";
+  if (score >= 50) return "1.0×";
+  return "0.8×";
 }
 
-export function scoreTier(score: number): number {
-  if (score >= 90) return 5;
-  if (score >= 80) return 4;
-  if (score >= 70) return 3;
-  if (score >= 60) return 2;
-  return 1;
+export function ltvLabel(score: number): string {
+  if (score >= 90) return "70%";
+  if (score >= 80) return "65%";
+  if (score >= 70) return "60%";
+  if (score >= 60) return "55%";
+  return "50%";
 }
 
-export function healthColor(health: number): string {
-  if (health > 2) return "text-green-600";
-  if (health > 1.2) return "text-yellow-600";
-  return "text-red-600";
+export function healthColor(hf: number): string {
+  if (hf >= 1.5) return "text-green-500";
+  if (hf >= 1.1) return "text-yellow-500";
+  return "text-red-500";
 }
 
-export function explorerTxUrl(txHash: string): string {
-  return `${ARC_EXPLORER}/tx/${txHash}`;
+export function formatApy(apyBps: bigint): string {
+  return (Number(apyBps) / 100).toFixed(2) + "% APY";
 }
 
-export function explorerAddressUrl(address: string): string {
-  return `${ARC_EXPLORER}/address/${address}`;
+// ─── Countdown helper ─────────────────────────────────────────────────────────
+
+/** Format seconds into a human-readable countdown: "3d 4h", "6h 12m", "45m", "now" */
+export function formatCountdown(seconds: number): string {
+  if (seconds <= 0) return "now";
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
 }

@@ -1,173 +1,184 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useAccount } from "wagmi";
-import { useMarketCount, useMarket, usePredict } from "@/hooks/useProtocol";
-import { formatUSDC, parseUSDC } from "@/lib/contracts";
-import { useTheme } from "@/lib/theme";
 
-function MarketCard({ id, viewOnly }: { id: number; viewOnly?: boolean }) {
-  const { address } = useAccount();
-  const { market, position, payout, refetch } = useMarket(id);
-  const { approveMarket, predict, claimWinnings, isPending } = usePredict();
-  const { dark } = useTheme();
+import { useState } from "react";
+import { useReadContract } from "wagmi";
+import { useProtocol } from "../hooks/useProtocol";
+import { formatUsdc } from "../lib/contracts";
+import { CONTRACT_ADDRESSES, PREDICTION_MARKET_ABI } from "../lib/contracts";
 
-  const [side, setSide] = useState<boolean | null>(null);
-  const [amount, setAmount] = useState("");
-  const [status, setStatus] = useState("");
+const MARKET_ADDR = CONTRACT_ADDRESSES.predictionMarket as `0x${string}`;
 
-  const card = dark ? "bg-gray-900 border-gray-800" : "bg-white border-gray-100";
-  const sub = dark ? "text-gray-500" : "text-gray-400";
-  const txt = dark ? "text-gray-300" : "text-gray-600";
-  const inp = dark ? "bg-gray-800 border-gray-700 text-white placeholder-gray-600" : "bg-white border-gray-200 text-gray-900";
+interface Market {
+  question: string;
+  endTime: bigint;
+  resolved: boolean;
+  outcome: boolean;
+  yesPool: bigint;
+  noPool: bigint;
+  feePool: bigint;
+}
 
-  if (!market) return <div className={`h-32 rounded-xl animate-pulse ${dark ? "bg-gray-800" : "bg-gray-100"}`} />;
+function useMarketData(id: bigint) {
+  return useReadContract({
+    address: MARKET_ADDR,
+    abi: PREDICTION_MARKET_ABI,
+    functionName: "getMarket",
+    args: [id],
+  });
+}
 
-  const now = Math.floor(Date.now() / 1000);
-  const isLive = !market.resolved && Number(market.endTime) > now;
-  const isEnded = !market.resolved && Number(market.endTime) <= now;
-  const totalPool = market.yesPool + market.noPool;
-  const yesPct = totalPool > 0n ? Math.round(Number(market.yesPool * 100n / totalPool)) : 50;
+function MarketRow({ id, predict }: { id: bigint; predict: (id: bigint, yes: boolean, stake: string) => Promise<void> }) {
+  const { data: m } = useMarketData(id);
+  const [stakeInput, setStakeInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [txDone, setTxDone] = useState(false);
+
+  if (!m) return <div className="bg-gray-800 rounded-xl p-4 animate-pulse h-24" />;
+
+  const market = m as unknown as Market;
+  const total = market.yesPool + market.noPool;
+  const yesPct = total > 0n ? Math.round(Number(market.yesPool * 100n / total)) : 50;
   const noPct = 100 - yesPct;
-  const hasPosition = position && (position.yesStake > 0n || position.noStake > 0n);
-  const canClaim = market.resolved && payout > 0n;
+  const ended = Date.now() > Number(market.endTime) * 1000;
+  const timeLeft = ended ? "Ended" : formatTimeLeft(Number(market.endTime));
 
-  const timeLeft = () => {
-    const diff = Number(market.endTime) - now;
-    if (diff <= 0) return "Ended";
-    const d = Math.floor(diff / 86400), h = Math.floor((diff % 86400) / 3600);
-    return d > 0 ? `${d}d ${h}h left` : `${h}h left`;
-  };
-
-  async function handlePredict() {
-    if (side === null || !amount) return;
+  async function handlePredict(yes: boolean) {
+    setError("");
+    if (!stakeInput || isNaN(Number(stakeInput)) || Number(stakeInput) <= 0) {
+      setError("Enter a stake amount");
+      return;
+    }
+    setLoading(true);
     try {
-      setStatus("Approving…");
-      const parsed = parseUSDC(amount);
-      await approveMarket(parsed);
-      setStatus("Staking…");
-      await predict(id, side, parsed);
-      setStatus("Staked ✓");
-      setAmount(""); setSide(null); refetch();
-    } catch (e: any) { setStatus("Error: " + (e?.shortMessage ?? e?.message)); }
+      await predict(id, yes, stakeInput);
+      setStakeInput("");
+      setTxDone(true);
+      setTimeout(() => setTxDone(false), 3000);
+    } catch (e: any) {
+      setError(e?.shortMessage ?? e?.message ?? "Transaction failed");
+    } finally {
+      setLoading(false);
+    }
   }
-
-  async function handleClaim() {
-    try {
-      setStatus("Claiming…");
-      await claimWinnings(id);
-      setStatus("Claimed ✓"); refetch();
-    } catch (e: any) { setStatus("Error: " + (e?.shortMessage ?? e?.message)); }
-  }
-
-  // Reduce opacity for resolved markets to push them visually lower
-  const resolvedStyle = market.resolved ? "opacity-60" : "";
 
   return (
-    <div className={`rounded-xl border p-4 ${card} ${resolvedStyle}`}>
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <p className={`text-sm font-semibold leading-snug flex-1 ${dark ? "text-white" : "text-gray-900"}`}>{market.question}</p>
-        <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
-          isLive ? "bg-green-900/40 text-green-400" : isEnded ? "bg-yellow-900/40 text-yellow-400" : market.outcome ? "bg-blue-900/40 text-blue-400" : "bg-red-900/40 text-red-400"
-        }`}>{isLive ? "Live" : isEnded ? "Pending" : market.outcome ? "YES won" : "NO won"}</span>
-      </div>
-      <div className={`flex flex-wrap gap-3 text-xs mb-4 ${sub}`}>
-        <span>⏱ {timeLeft()}</span>
-        <span>💰 ${formatUSDC(totalPool)} pool</span>
-        {hasPosition && <span className="text-blue-400">✓ You're in</span>}
-      </div>
-      <div className="mb-3">
-        <div className="flex justify-between text-xs font-medium mb-1">
-          <span className="text-green-500">YES {yesPct}%</span>
-          <span className="text-red-400">NO {noPct}%</span>
-        </div>
-        <div className={`h-1.5 rounded-full overflow-hidden ${dark ? "bg-gray-800" : "bg-gray-100"}`}>
-          <div className="h-full bg-green-500 rounded-full" style={{ width: `${yesPct}%` }} />
-        </div>
+    <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium text-white leading-snug">{market.question}</p>
+        <span className={`text-xs shrink-0 px-2 py-0.5 rounded-full font-medium ${
+          market.resolved
+            ? "bg-gray-700 text-gray-400"
+            : ended
+            ? "bg-amber-400/10 text-amber-400"
+            : "bg-emerald-400/10 text-emerald-400"
+        }`}>
+          {market.resolved ? (market.outcome ? "✓ YES" : "✗ NO") : timeLeft}
+        </span>
       </div>
 
-      {/* View only mode — no predict form */}
-      {viewOnly && isLive && (
-        <p className={`text-xs ${sub}`}>Go to PREDICT to stake on this market</p>
-      )}
+      {/* Pool bar */}
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-between text-xs text-gray-500">
+          <span>YES {yesPct}% · ${formatUsdc(market.yesPool)}</span>
+          <span>${formatUsdc(market.noPool)} · {noPct}% NO</span>
+        </div>
+        <div className="flex h-2 rounded-full overflow-hidden bg-gray-700">
+          <div className="bg-emerald-500 transition-all" style={{ width: `${yesPct}%` }} />
+          <div className="bg-red-500 transition-all" style={{ width: `${noPct}%` }} />
+        </div>
+        <p className="text-xs text-gray-600">Total pool: ${formatUsdc(total)} · Fees: ${formatUsdc(market.feePool)}</p>
+      </div>
 
-      {!viewOnly && isLive && !hasPosition && (
-        <>
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            {([true, false] as const).map(s => (
-              <button key={String(s)} onClick={() => setSide(s)}
-                className={`py-2 text-sm font-semibold rounded-lg border transition-colors ${
-                  side === s
-                    ? s ? "bg-green-600 border-green-600 text-white" : "bg-red-600 border-red-600 text-white"
-                    : dark ? "border-gray-700 text-gray-400 hover:border-gray-500" : "border-gray-200 text-gray-500 hover:border-gray-300"
-                }`}>{s ? "YES ↑" : "NO ↓"}</button>
-            ))}
+      {/* Predict controls */}
+      {!market.resolved && !ended && (
+        <div className="flex flex-col gap-2">
+          <div className="relative">
+            <input
+              type="number"
+              placeholder="Stake amount (USDC)"
+              value={stakeInput}
+              onChange={(e) => { setStakeInput(e.target.value); setError(""); }}
+              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-gray-400 pr-16"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">USDC</span>
           </div>
+
           <div className="flex gap-2">
-            <input type="number" placeholder="USDC stake" value={amount} onChange={e => setAmount(e.target.value)}
-              className={`flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${inp}`} />
-            <button onClick={handlePredict} disabled={isPending || side === null || !amount}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-40">
-              {isPending ? "…" : "Stake"}
+            <button
+              onClick={() => handlePredict(true)}
+              disabled={loading || !stakeInput}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-sm font-bold py-2 rounded-lg transition-colors"
+            >
+              {loading ? "..." : "✓ Stake YES"}
+            </button>
+            <button
+              onClick={() => handlePredict(false)}
+              disabled={loading || !stakeInput}
+              className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-sm font-bold py-2 rounded-lg transition-colors"
+            >
+              {loading ? "..." : "✗ Stake NO"}
             </button>
           </div>
-          <p className={`text-xs mt-1.5 ${sub}`}>1% fee · correct predictions boost score</p>
-        </>
-      )}
-      {!viewOnly && isLive && hasPosition && (
-        <div className={`rounded-lg px-3 py-2 text-sm ${dark ? "bg-blue-900/30 text-blue-400" : "bg-blue-50 text-blue-700"}`}>
-          Position: {position!.yesStake > 0n ? "YES" : "NO"} · ${formatUSDC(position!.yesStake > 0n ? position!.yesStake : position!.noStake)}
+
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          {txDone && <p className="text-xs text-emerald-400">✓ Prediction placed!</p>}
         </div>
       )}
-      {canClaim && (
-        <button onClick={handleClaim} disabled={isPending}
-          className="w-full mt-2 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50">
-          {isPending ? "Claiming…" : `Claim $${formatUSDC(payout)}`}
-        </button>
+
+      {market.resolved && (
+        <p className="text-xs text-gray-500">
+          Market resolved · outcome:{" "}
+          <span className={market.outcome ? "text-emerald-400 font-semibold" : "text-red-400 font-semibold"}>
+            {market.outcome ? "YES" : "NO"}
+          </span>
+        </p>
       )}
-      {market.resolved && payout === 0n && hasPosition && (
-        <div className={`text-sm text-center py-1 ${sub}`}>
-          {position!.claimed ? "Claimed ✓" : "Incorrect prediction"}
-        </div>
-      )}
-      {status && <div className={`mt-1.5 text-xs ${sub}`}>{status}</div>}
     </div>
   );
 }
 
-function SortedMarketList({ count, viewOnly }: { count: number; viewOnly?: boolean }) {
-  const [order, setOrder] = useState<number[]>(() => Array.from({ length: count }, (_, i) => i));
+export function MarketList() {
+  const { nextMarketId, predict, usdcBalance } = useProtocol();
 
-  // Read all markets and sort: live → pending → resolved
-  const markets = Array.from({ length: count }, (_, i) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const { market } = useMarket(i);
-    return { id: i, market };
-  });
+  async function handlePredict(id: bigint, yes: boolean, stake: string) {
+    await predict(id, yes, stake);
+  }
 
-  useEffect(() => {
-    const now = Math.floor(Date.now() / 1000);
-    const sorted = [...markets].sort((a, b) => {
-      const aResolved = a.market?.resolved ? 2 : (Number(a.market?.endTime ?? 0) <= now ? 1 : 0);
-      const bResolved = b.market?.resolved ? 2 : (Number(b.market?.endTime ?? 0) <= now ? 1 : 0);
-      return aResolved - bResolved;
-    });
-    setOrder(sorted.map(m => m.id));
-  }, [markets.map(m => m.market?.resolved).join(",")]);
+  const ids = Array.from({ length: nextMarketId }, (_, i) => BigInt(i));
 
   return (
-    <div className="space-y-4">
-      {order.map(i => <MarketCard key={i} id={i} viewOnly={viewOnly} />)}
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+          Prediction Markets
+        </h2>
+        <span className="text-xs text-gray-600">{nextMarketId} markets</span>
+      </div>
+
+      <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-xs text-blue-300">
+        💡 Predict correctly → ArcIQ score rises → higher yield multiplier + borrow limit
+      </div>
+
+      {ids.length === 0 && (
+        <div className="text-center text-gray-600 py-8 text-sm">No markets yet</div>
+      )}
+
+      <div className="flex flex-col gap-3">
+        {ids.map((id) => (
+          <MarketRow key={id.toString()} id={id} predict={handlePredict} />
+        ))}
+      </div>
     </div>
   );
 }
 
-export function MarketList({ viewOnly }: { viewOnly?: boolean }) {
-  const count = useMarketCount();
-  const { dark } = useTheme();
-  if (count === 0) return (
-    <div className={`rounded-xl border p-8 text-center text-sm ${dark ? "bg-gray-900 border-gray-800 text-gray-500" : "bg-white border-gray-100 text-gray-400"}`}>
-      No markets yet. Run the createMarkets script to add markets.
-    </div>
-  );
-  return <SortedMarketList count={count} viewOnly={viewOnly} />;
+function formatTimeLeft(endTimeSec: number): string {
+  const diff = endTimeSec * 1000 - Date.now();
+  if (diff <= 0) return "Ended";
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  if (days > 0) return `${days}d ${hours}h left`;
+  const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  return `${hours}h ${mins}m left`;
 }

@@ -1,108 +1,159 @@
 "use client";
-import { useAccount } from "wagmi";
-import { useReputation, useLoanData } from "@/hooks/useProtocol";
-import { formatUSDC, scoreToMultiplier, scoreTier } from "@/lib/contracts";
-import { useTheme } from "@/lib/theme";
+
+import { useProtocol } from "../hooks/useProtocol";
+import { formatUsdc, yieldMultiplierLabel, ltvLabel } from "../lib/contracts";
 
 export function ProfileCard() {
-  const { address } = useAccount();
-  const { score, totalPredictions, wins } = useReputation(address);
-  const { principal } = useLoanData();
-  const { dark } = useTheme();
+  const {
+    address, score, isElite,
+    depositBalance, loanCollateral, freeBalance,
+    earnedWithMultiplier, totalYieldDistributed,
+    loan, accruedInterest, healthFactor,
+    usdcBalance,
+    estimatedApy, yieldMultiplier,
+  } = useProtocol();
 
-  const card = dark ? "bg-gray-900 border-gray-800" : "bg-white border-gray-100";
-  const sub = dark ? "text-gray-500" : "text-gray-400";
-  const txt = dark ? "text-gray-300" : "text-gray-600";
-  const main = dark ? "text-white" : "text-gray-900";
-  const rowBorder = dark ? "border-gray-800" : "border-gray-50";
+  if (!address) {
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center text-gray-500 text-sm py-12">
+        Connect your wallet to view your profile
+      </div>
+    );
+  }
 
-  const losses = Number(totalPredictions) - Number(wins);
-  const winRate = Number(totalPredictions) > 0 ? Math.round((Number(wins) / Number(totalPredictions)) * 100) : 0;
-  const tierLabel = ["—","Novice","Apprentice","Analyst","Expert","Oracle"][scoreTier(score)];
-  const bars = [...Array(Number(wins)).fill(true), ...Array(losses).fill(false)].slice(-16);
+  const hasLoan = loan && (loan as any).active;
+  const effectiveApy = (estimatedApy * yieldMultiplier).toFixed(2);
 
   return (
-    <div className="space-y-4">
-      {/* Header card */}
-      <div className={`rounded-xl border p-5 ${card}`}>
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
-            {address?.slice(2, 4).toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className={`font-bold truncate ${main}`}>{address?.slice(0,6)}…{address?.slice(-4)}</div>
-            <div className="text-sm text-blue-500 font-medium">{tierLabel} · Score {score}</div>
-          </div>
-          <div className="text-right">
-            <div className={`text-xl font-bold ${main}`}>{scoreToMultiplier(score)}</div>
-            <div className={`text-xs ${sub}`}>LTV boost</div>
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 flex flex-col gap-4">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-sm font-bold text-blue-400">
+          {address.slice(2, 4).toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white truncate">
+            {address.slice(0, 8)}…{address.slice(-6)}
+          </p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className={`text-xs font-medium ${
+              score >= 90 ? "text-violet-400" :
+              score >= 70 ? "text-emerald-400" :
+              score >= 50 ? "text-blue-400" : "text-gray-400"
+            }`}>
+              ArcIQ {score}
+            </span>
+            {isElite && (
+              <span className="text-xs text-violet-400 bg-violet-400/10 border border-violet-400/20 px-1.5 py-0.5 rounded">
+                ⚡ Elite
+              </span>
+            )}
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { l: "Predictions", v: Number(totalPredictions), c: main },
-            { l: "Wins", v: Number(wins), c: "text-green-500" },
-            { l: "Win rate", v: `${winRate}%`, c: winRate >= 60 ? "text-green-500" : main },
-          ].map(s => (
-            <div key={s.l} className={`text-center rounded-lg py-3 ${dark ? "bg-gray-800" : "bg-gray-50"}`}>
-              <div className={`text-xl font-bold ${s.c}`}>{s.v}</div>
-              <div className={`text-xs ${sub}`}>{s.l}</div>
-            </div>
-          ))}
+        <div className="text-right">
+          <p className="text-xs text-gray-500">Wallet</p>
+          <p className="text-sm font-semibold text-white">${formatUsdc(usdcBalance)}</p>
         </div>
       </div>
 
-      {/* History bars */}
-      {bars.length > 0 && (
-        <div className={`rounded-xl border p-5 ${card}`}>
-          <p className={`text-xs font-bold uppercase tracking-wide mb-3 ${sub}`}>Prediction history</p>
-          <div className="flex gap-1 items-end h-8">
-            {bars.map((win, i) => (
-              <div key={i} className={`flex-1 rounded-sm ${win ? "bg-green-500" : "bg-red-400"}`}
-                style={{ height: win ? "100%" : "50%" }} />
-            ))}
+      {/* Yield snapshot */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3">
+          <p className="text-xs text-emerald-400">Effective APY</p>
+          <p className="text-lg font-bold text-emerald-300">{effectiveApy}%</p>
+          <p className="text-xs text-emerald-600 mt-0.5">{yieldMultiplierLabel(score)} multiplier</p>
+        </div>
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+          <p className="text-xs text-blue-400">Max LTV</p>
+          <p className="text-lg font-bold text-blue-300">{ltvLabel(score)}</p>
+          <p className="text-xs text-blue-600 mt-0.5">score-weighted</p>
+        </div>
+      </div>
+
+      {/* Vault stats */}
+      <div className="bg-gray-800 rounded-xl p-4 flex flex-col gap-2">
+        <p className="text-xs font-semibold text-gray-400 mb-1">Vault position</p>
+        <Row label="Deposited" value={`$${formatUsdc(depositBalance)}`} />
+        <Row label="Locked as collateral" value={`$${formatUsdc(loanCollateral)}`} dim />
+        <Row label="Free to withdraw" value={`$${formatUsdc(freeBalance)}`} highlight />
+        <Row label="Claimable yield" value={`$${formatUsdc(earnedWithMultiplier)}`}
+          highlight={earnedWithMultiplier > 0n} />
+      </div>
+
+      {/* Loan position */}
+      {hasLoan && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-amber-400">Active loan</p>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+              healthFactor >= 1.5 ? "text-emerald-400 bg-emerald-400/10" :
+              healthFactor >= 1.1 ? "text-amber-400 bg-amber-400/10" :
+              "text-red-400 bg-red-400/10"
+            }`}>
+              HF {healthFactor.toFixed(2)}
+            </span>
           </div>
-          <div className={`flex gap-4 mt-2 text-xs ${sub}`}>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-sm inline-block" />Won</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-red-400 rounded-sm inline-block" />Lost</span>
-          </div>
+          <Row label="Principal" value={`$${formatUsdc((loan as any).principal)}`} />
+          <Row label="Accrued interest" value={`$${formatUsdc(accruedInterest)}`} warn />
+          <Row label="Total to repay"
+            value={`$${formatUsdc((loan as any).principal + accruedInterest)}`} />
         </div>
       )}
 
-      {/* Account details */}
-      <div className={`rounded-xl border p-5 ${card}`}>
-        <p className={`text-xs font-bold uppercase tracking-wide mb-3 ${sub}`}>Account Details</p>
-        <div className="space-y-0">
-          {[
-            { l: "Wallet", v: `${address?.slice(0,6)}…${address?.slice(-4)}` },
-            { l: "Borrowing tier", v: `${tierLabel} (Score ${score})` },
-            { l: "LTV multiplier", v: scoreToMultiplier(score) },
-            { l: "Active debt", v: principal > 0n ? `$${formatUSDC(principal)}` : "None" },
-          ].map(r => (
-            <div key={r.l} className={`flex justify-between py-2.5 border-b last:border-0 text-sm ${rowBorder}`}>
-              <span className={sub}>{r.l}</span>
-              <span className={`font-semibold ${main}`}>{r.v}</span>
-            </div>
-          ))}
-        </div>
+      {/* History */}
+      <div className="flex flex-col gap-1">
+        <p className="text-xs text-gray-500">Protocol totals</p>
+        <p className="text-xs text-gray-600">
+          All-time yield distributed to depositors: <span className="text-white">${formatUsdc(totalYieldDistributed)}</span>
+        </p>
       </div>
 
-      {/* Revenue */}
-      <div className={`rounded-xl border p-5 ${card}`}>
-        <p className={`text-xs font-bold uppercase tracking-wide mb-3 ${sub}`}>Protocol Revenue Streams</p>
-        <div className="space-y-0">
-          {[
-            { l: "Borrow interest", v: "5% APR" },
-            { l: "Prediction fee", v: "1% per stake" },
-            { l: "Liquidation penalty", v: "5% of collateral" },
-          ].map(r => (
-            <div key={r.l} className={`flex justify-between py-2.5 border-b last:border-0 text-sm ${rowBorder}`}>
-              <span className={sub}>{r.l}</span>
-              <span className={`font-semibold ${main}`}>{r.v}</span>
-            </div>
-          ))}
+      {/* Score progress */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-xs text-gray-500">Score progress</p>
+          <p className="text-xs text-gray-400">
+            {score < 50 ? "50 to unlock baseline yield" :
+             score < 70 ? `${70 - score} pts to Advanced (1.2×)` :
+             score < 80 ? `${80 - score} pts to Pro (1.4×)` :
+             score < 90 ? `${90 - score} pts to Elite (1.6× + bonus pool)` :
+             "🏆 Maximum tier reached"}
+          </p>
+        </div>
+        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${score}%`,
+              background: score >= 90 ? "#7F77DD" :
+                          score >= 70 ? "#1D9E75" :
+                          score >= 50 ? "#378ADD" : "#E24B4A",
+            }}
+          />
         </div>
       </div>
+    </div>
+  );
+}
+
+function Row({
+  label, value, highlight, warn, dim,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+  warn?: boolean;
+  dim?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="text-gray-500">{label}</span>
+      <span className={
+        highlight ? "text-emerald-400 font-semibold" :
+        warn      ? "text-amber-400 font-semibold" :
+        dim       ? "text-gray-500" :
+        "text-white font-medium"
+      }>{value}</span>
     </div>
   );
 }
