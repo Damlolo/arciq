@@ -134,6 +134,7 @@ export const PREDICTION_MARKET_ABI = [
       { name: "yesPool",  type: "uint256" },
       { name: "noPool",   type: "uint256" },
       { name: "feePool",  type: "uint256" },
+      { name: "mode",     type: "uint8"    },
     ]}],
   },
   {

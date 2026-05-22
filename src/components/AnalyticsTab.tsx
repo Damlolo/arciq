@@ -2,7 +2,7 @@
 
 import { useReadContract } from "wagmi";
 import { useProtocol } from "../hooks/useProtocol";
-import { formatUsdc, CONTRACT_ADDRESSES, PREDICTION_MARKET_ABI } from "../lib/contracts";
+import { CONTRACT_ADDRESSES, PREDICTION_MARKET_ABI } from "../lib/contracts";
 
 const MARKET_ADDR = CONTRACT_ADDRESSES.predictionMarket as `0x${string}`;
 
@@ -14,9 +14,9 @@ interface Market {
   yesPool:   bigint;
   noPool:    bigint;
   feePool:   bigint;
+  mode:      number;
 }
 
-// Fetches a single market's data
 function useMarketData(id: number, enabled: boolean) {
   return useReadContract({
     address: MARKET_ADDR,
@@ -27,13 +27,10 @@ function useMarketData(id: number, enabled: boolean) {
   });
 }
 
-// Renders one row in the market breakdown table
 function MarketRow({ id, now }: { id: number; now: number }) {
   const { data } = useMarketData(id, true);
   if (!data) {
-    return (
-      <div className="h-14 rounded-xl animate-pulse bg-gray-800 mx-4 mb-2" />
-    );
+    return <div className="h-14 rounded-xl animate-pulse bg-gray-800 mx-4 mb-2" />;
   }
   const m = data as unknown as Market;
   const total = m.yesPool + m.noPool;
@@ -62,7 +59,6 @@ function MarketRow({ id, now }: { id: number; now: number }) {
           <p className="text-xs text-gray-500">pool</p>
         </div>
       </div>
-      {/* YES/NO bar */}
       <div className="h-1.5 rounded-full overflow-hidden bg-gray-700">
         <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${yesPct}%` }} />
       </div>
@@ -74,31 +70,8 @@ function MarketRow({ id, now }: { id: number; now: number }) {
   );
 }
 
-// Aggregates all market data for stats — rendered invisibly, pushes data up via callback
-function MarketAggregator({
-  ids,
-  onData,
-}: {
-  ids: number[];
-  onData: (stats: { totalPool: bigint; totalTrades: number; activeTrades: number }) => void;
-}) {
-  // We can't do dynamic hook arrays, so we cap at 20 markets for aggregation
-  // and collect data in the parent via the MarketRow-level reads instead.
-  // This component is intentionally empty — aggregation happens inline below.
-  return null;
-}
-
-// Stat card
-function StatCard({
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  accent?: string;
+function StatCard({ label, value, sub, accent }: {
+  label: string; value: string; sub?: string; accent?: string;
 }) {
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
@@ -108,8 +81,6 @@ function StatCard({
     </div>
   );
 }
-
-// ── Single-market hook used for aggregation ──────────────────────────────────
 
 function useAllMarkets(count: number) {
   const m0  = useMarketData(0,  count > 0);
@@ -132,13 +103,43 @@ function useAllMarkets(count: number) {
   const m17 = useMarketData(17, count > 17);
   const m18 = useMarketData(18, count > 18);
   const m19 = useMarketData(19, count > 19);
+  const m20 = useMarketData(20, count > 20);
+  const m21 = useMarketData(21, count > 21);
+  const m22 = useMarketData(22, count > 22);
+  const m23 = useMarketData(23, count > 23);
+  const m24 = useMarketData(24, count > 24);
+  const m25 = useMarketData(25, count > 25);
+  const m26 = useMarketData(26, count > 26);
+  const m27 = useMarketData(27, count > 27);
+  const m28 = useMarketData(28, count > 28);
+  const m29 = useMarketData(29, count > 29);
+  const m30 = useMarketData(30, count > 30);
+  const m31 = useMarketData(31, count > 31);
+  const m32 = useMarketData(32, count > 32);
+  const m33 = useMarketData(33, count > 33);
+  const m34 = useMarketData(34, count > 34);
+  const m35 = useMarketData(35, count > 35);
+  const m36 = useMarketData(36, count > 36);
+  const m37 = useMarketData(37, count > 37);
+  const m38 = useMarketData(38, count > 38);
+  const m39 = useMarketData(39, count > 39);
+  const m40 = useMarketData(40, count > 40);
+  const m41 = useMarketData(41, count > 41);
+  const m42 = useMarketData(42, count > 42);
+  const m43 = useMarketData(43, count > 43);
+  const m44 = useMarketData(44, count > 44);
+  const m45 = useMarketData(45, count > 45);
+  const m46 = useMarketData(46, count > 46);
+  const m47 = useMarketData(47, count > 47);
+  const m48 = useMarketData(48, count > 48);
+  const m49 = useMarketData(49, count > 49);
 
-  return [m0,m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,m18,m19]
+  return [m0,m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,m18,m19,
+          m20,m21,m22,m23,m24,m25,m26,m27,m28,m29,m30,m31,m32,m33,m34,m35,m36,m37,m38,m39,
+          m40,m41,m42,m43,m44,m45,m46,m47,m48,m49]
     .slice(0, count)
     .map(r => r.data as unknown as Market | undefined);
 }
-
-// ── Mini sparkline-style pool bar chart ──────────────────────────────────────
 
 function PoolChart({ markets, ids }: { markets: (Market | undefined)[]; ids: number[] }) {
   const bars = markets
@@ -171,42 +172,30 @@ function PoolChart({ markets, ids }: { markets: (Market | undefined)[]; ids: num
   );
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
-
 export function AnalyticsTab() {
   const { nextMarketId } = useProtocol();
 
-  const count = Math.min(nextMarketId, 20); // cap at 20 for static hook array
+  const count = Math.min(nextMarketId, 50);
   const ids   = Array.from({ length: count }, (_, i) => i);
   const now   = Math.floor(Date.now() / 1000);
 
   const markets = useAllMarkets(count);
 
-  // ── Aggregate stats ─────────────────────────────────────────────────────
-  let totalPool    = 0;   // USDC cents sum → display as $
-  let totalTrades  = 0;   // count of markets that have any pool (proxy for trade count)
-  let activeTrades = 0;   // unresolved markets that haven't ended
+  let totalPool    = 0;
+  let activeTrades = 0;
   const loaded     = markets.filter(Boolean).length;
 
   for (const m of markets) {
     if (!m) continue;
-    const pool = Number(m.yesPool + m.noPool) / 1e6;
-    totalPool += pool;
-    // Each market with a non-zero pool represents at least one trade
-    if (pool > 0) totalTrades++;
-    // Active = not resolved and not ended
+    totalPool += Number(m.yesPool + m.noPool) / 1e6;
     if (!m.resolved && Number(m.endTime) > now) activeTrades++;
   }
 
-  // Active traders proxy: markets with activity is the best on-chain signal we have
-  // without a subgraph. Show markets that have both YES and NO stakes (contested = multiple traders).
-  const contestedMarkets = markets.filter(m => m && m.yesPool > 0n && m.noPool > 0n).length;
   const isLoading = loaded < count && count > 0;
 
   return (
     <div className="space-y-5">
 
-      {/* Header */}
       <div>
         <h2 className="text-lg font-semibold text-white">Analytics</h2>
         <p className="text-sm text-gray-400 mt-0.5">
@@ -214,7 +203,6 @@ export function AnalyticsTab() {
         </p>
       </div>
 
-      {/* Top stat cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <StatCard
           label="Total Volume / Pool"
@@ -241,18 +229,14 @@ export function AnalyticsTab() {
         />
       </div>
 
-
-      {/* Pool chart */}
       {loaded > 0 && <PoolChart markets={markets} ids={ids} />}
 
-      {/* Market breakdown table */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-800">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
             Market Breakdown
           </p>
         </div>
-
         {count === 0 ? (
           <div className="py-10 text-center text-sm text-gray-600">
             No markets created yet.
