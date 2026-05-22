@@ -7,7 +7,7 @@ export const CONTRACT_ADDRESSES = {
   reputationEngine: "0xa67e9f3922ce7E5c72779795823249803A73C817",
   vault:            "0x3cE7B2c783654A25a2C6b9b0101e8F0ac1Ea5d87", // ← replace with Vault v2 address after deploy
   yieldRouter:      "0xbEf7ABB0A7cDdf8C58260B9c3A06A34F8E8A91bf", // ← replace with YieldRouter v2 address after deploy
-  predictionMarket: "0xD2FD0ad2b7Bf6F55DcAac01399237aBE556F4202",
+  predictionMarket: "0x50D79E025FBEB3032B750F7F68c4183C3406dD3B",
   lendingEngine:    "0x06068eB5d5BE9Ea45C3E6875FD2Af99AC80A7577",
 
   // Set this after deploying USYCYieldAdapter and receiving USYC allowlist approval.
