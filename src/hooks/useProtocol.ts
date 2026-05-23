@@ -151,6 +151,11 @@ export function useProtocol() {
     functionName: "estimatedApy",
   });
 
+  const { data: pendingUsdcToVault } = useReadContract({
+    address: ROUTER, abi: YIELD_ROUTER_ABI,
+    functionName: "pendingUsdcToVault",
+  });
+
   const { data: lastDistribution } = useReadContract({
     address: ROUTER, abi: YIELD_ROUTER_ABI,
     functionName: "lastDistributionTimestamp",
@@ -430,6 +435,7 @@ export function useProtocol() {
     pendingTotal:             pendingTotal          ?? 0n,
     eliteBonusPool:           eliteBonusPool        ?? 0n,
     estimatedApy:             Number(estimatedApy   ?? 0n) / 100, // bps → percent
+    pendingUsdcToVault:       pendingUsdcToVault    ?? 0n,        // raw USDC (6 dec) accruing this epoch
     lastDistribution:         lastDistribution ? Number(lastDistribution) * 1000 : null,
     secondsUntilDistribution: secsUntilDist,
     canDistribute,

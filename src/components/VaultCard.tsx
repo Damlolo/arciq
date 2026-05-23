@@ -11,7 +11,7 @@ export function VaultCard() {
     depositBalance, freeBalance, loanCollateral,
     earnedWithMultiplier, earnedBase,
     usdcBalance,
-    estimatedApy, yieldMultiplier,
+    estimatedApy, yieldMultiplier, pendingUsdcToVault,
     deposit, withdraw, claimYield,
   } = useProtocol();
 
@@ -20,7 +20,10 @@ export function VaultCard() {
   const [loading, setLoading] = useState(false);
   const [txHash, setTxHash]   = useState<string | null>(null);
 
-  const effectiveApy = (estimatedApy * yieldMultiplier).toFixed(2);
+  // Pool APY from completed epoch data + external yield source only.
+  // Multiplier is shown separately — it applies at claim time, not to the pool rate.
+  const effectiveApy = estimatedApy.toFixed(2);
+  const pendingEpochUsdc = Number(pendingUsdcToVault) / 1e6;
   const hasYield     = earnedWithMultiplier > 0n;
   const hasBoost     = yieldMultiplier > 1 && earnedBase > 0n;
   const boostAmount  = hasBoost ? earnedWithMultiplier - earnedBase : 0n;
@@ -63,12 +66,19 @@ export function VaultCard() {
           <p className="text-[11px] font-bold tracking-[0.12em] uppercase text-[var(--text-muted)]">Vault</p>
           <p className="text-[13px] text-[var(--text-secondary)] mt-0.5">Deposit, earn & manage collateral</p>
         </div>
-        <span className="badge badge-green">
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
-          </svg>
-          {effectiveApy}% APY
-        </span>
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="badge badge-green">
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+            </svg>
+            {effectiveApy}% APY
+          </span>
+          {pendingEpochUsdc > 0 && (
+            <span className="text-[10px] text-[var(--text-muted)]">
+              ~${pendingEpochUsdc.toFixed(2)} accruing this epoch
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Stats row */}
