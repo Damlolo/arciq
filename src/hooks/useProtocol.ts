@@ -14,7 +14,8 @@
  *   - USYC balance read added for wallet display.
  */
 
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useAccount, useReadContract, useWriteContract, usePublicClient } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import { parseUnits } from "viem";
 import {
   CONTRACT_ADDRESSES,
@@ -44,6 +45,8 @@ function u(amount: string) {
 export function useProtocol() {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
+  const queryClient  = useQueryClient();
 
   // ─── Score & reputation ────────────────────────────────────────────────
 
@@ -288,6 +291,18 @@ export function useProtocol() {
     functionName: "nextMarketId",
   });
 
+  // ─── Invalidate all cached reads after a tx confirms ─────────────────
+  async function invalidateAll() {
+    await queryClient.invalidateQueries();
+  }
+
+  async function waitAndRefresh(txHash: `0x${string}`) {
+    if (publicClient) {
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
+    }
+    await invalidateAll();
+  }
+
   // ─── Write actions ────────────────────────────────────────────────────
 
   async function approveUsdc(spender: `0x${string}`, amount: string) {
@@ -300,94 +315,119 @@ export function useProtocol() {
 
   async function deposit(amount: string) {
     if ((usdcAllowanceVault ?? 0n) < u(amount)) {
-      await approveUsdc(VAULT, amount);
+      const approveTx = await approveUsdc(VAULT, amount);
+      if (publicClient) await publicClient.waitForTransactionReceipt({ hash: approveTx as `0x${string}` });
     }
-    return writeContractAsync({
+    const tx = await writeContractAsync({
       address: VAULT, abi: VAULT_ABI,
       functionName: "deposit",
       args: [u(amount)],
     });
+    await waitAndRefresh(tx as `0x${string}`);
+    return tx;
   }
 
   async function withdraw(amount: string) {
-    return writeContractAsync({
+    const tx = await writeContractAsync({
       address: VAULT, abi: VAULT_ABI,
       functionName: "withdraw",
       args: [u(amount)],
     });
+    await waitAndRefresh(tx as `0x${string}`);
+    return tx;
   }
 
   async function claimYield() {
-    return writeContractAsync({
+    const tx = await writeContractAsync({
       address: VAULT, abi: VAULT_ABI,
       functionName: "claimYield",
     });
+    await waitAndRefresh(tx as `0x${string}`);
+    return tx;
   }
 
   async function claimEliteBonus() {
-    return writeContractAsync({
+    const tx = await writeContractAsync({
       address: ROUTER, abi: YIELD_ROUTER_ABI,
       functionName: "claimEliteBonus",
     });
+    await waitAndRefresh(tx as `0x${string}`);
+    return tx;
   }
 
   async function distributeYield() {
-    return writeContractAsync({
+    const tx = await writeContractAsync({
       address: ROUTER, abi: YIELD_ROUTER_ABI,
       functionName: "distribute",
     });
+    await waitAndRefresh(tx as `0x${string}`);
+    return tx;
   }
 
   async function deployToSource() {
-    return writeContractAsync({
+    const tx = await writeContractAsync({
       address: ROUTER, abi: YIELD_ROUTER_ABI,
       functionName: "deployToSource",
     });
+    await waitAndRefresh(tx as `0x${string}`);
+    return tx;
   }
 
   async function predict(marketId: bigint, yes: boolean, amount: string) {
     if ((usdcAllowanceMarket ?? 0n) < u(amount)) {
-      await approveUsdc(MARKET, amount);
+      const approveTx = await approveUsdc(MARKET, amount);
+      if (publicClient) await publicClient.waitForTransactionReceipt({ hash: approveTx as `0x${string}` });
     }
-    return writeContractAsync({
+    const tx = await writeContractAsync({
       address: MARKET, abi: PREDICTION_MARKET_ABI,
       functionName: "predict",
       args: [marketId, yes, u(amount)],
     });
+    await waitAndRefresh(tx as `0x${string}`);
+    return tx;
   }
 
   async function claimWinnings(marketId: bigint) {
-    return writeContractAsync({
+    const tx = await writeContractAsync({
       address: MARKET, abi: PREDICTION_MARKET_ABI,
       functionName: "claimWinnings",
       args: [marketId],
     });
+    await waitAndRefresh(tx as `0x${string}`);
+    return tx;
   }
 
   async function borrow(collateral: string, amount: string) {
     if ((usdcAllowanceLending ?? 0n) < u(collateral)) {
-      await approveUsdc(LENDING, collateral);
+      const approveTx = await approveUsdc(LENDING, collateral);
+      if (publicClient) await publicClient.waitForTransactionReceipt({ hash: approveTx as `0x${string}` });
     }
-    return writeContractAsync({
+    const tx = await writeContractAsync({
       address: LENDING, abi: LENDING_ENGINE_ABI,
       functionName: "borrow",
       args: [u(collateral), u(amount)],
     });
+    await waitAndRefresh(tx as `0x${string}`);
+    return tx;
   }
 
   async function repay() {
-    return writeContractAsync({
+    const tx = await writeContractAsync({
       address: LENDING, abi: LENDING_ENGINE_ABI,
       functionName: "repay",
     });
+    await waitAndRefresh(tx as `0x${string}`);
+    return tx;
   }
 
   async function liquidate(borrower: `0x${string}`) {
-    return writeContractAsync({
+    const tx = await writeContractAsync({
       address: LENDING, abi: LENDING_ENGINE_ABI,
       functionName: "liquidate",
       args: [borrower],
     });
+    await waitAndRefresh(tx as `0x${string}`);
+    return tx;
   }
 
   // ─── Derived values ───────────────────────────────────────────────────

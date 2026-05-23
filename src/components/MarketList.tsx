@@ -1,30 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useReadContract, useAccount } from "wagmi";
 import { useProtocol } from "../hooks/useProtocol";
 import { formatUsdc, parseUsdc } from "../lib/contracts";
 import { CONTRACT_ADDRESSES, PREDICTION_MARKET_ABI } from "../lib/contracts";
 
 const MARKET_ADDR = CONTRACT_ADDRESSES.predictionMarket as `0x${string}`;
+const PAGE_SIZE   = 20;
 
 export type MarketMode = 0 | 1 | 2;
 
 interface Market {
   question: string;
-  endTime: bigint;
+  endTime:  bigint;
   resolved: boolean;
-  outcome: boolean;
-  yesPool: bigint;
-  noPool: bigint;
-  feePool: bigint;
-  mode: MarketMode;
+  outcome:  boolean;
+  yesPool:  bigint;
+  noPool:   bigint;
+  feePool:  bigint;
+  mode:     MarketMode;
 }
 
 interface Position {
   yesStake: bigint;
-  noStake: bigint;
-  claimed: boolean;
+  noStake:  bigint;
+  claimed:  boolean;
 }
 
 function useMarketData(id: bigint) {
@@ -61,7 +62,6 @@ function formatTimeLeft(endTimeSec: number): string {
   return `${hours}h ${mins}m`;
 }
 
-// ── Mini sparkline bars (decorative) ────────────────────────────────────────
 function Sparkline({ yesPct }: { yesPct: number }) {
   const bars = [35, 50, 42, 65, 55, 72, 60, 80, yesPct * 0.9, yesPct];
   const max  = Math.max(...bars);
@@ -93,8 +93,8 @@ function MarketCard({
   predict: (id: bigint, yes: boolean, stake: string) => Promise<void>;
   walletAddress?: `0x${string}`;
 }) {
-  const { data: m }       = useMarketData(id);
-  const { data: posRaw }  = useReadContract({
+  const { data: m }         = useMarketData(id);
+  const { data: posRaw }    = useReadContract({
     address: MARKET_ADDR, abi: PREDICTION_MARKET_ABI,
     functionName: "getPosition", args: [id, walletAddress!],
     query: { enabled: !!walletAddress },
@@ -105,14 +105,13 @@ function MarketCard({
     query: { enabled: !!walletAddress },
   });
 
-  const [side, setSide]         = useState<"yes" | "no">("yes");
+  const [side, setSide]             = useState<"yes" | "no">("yes");
   const [stakeInput, setStakeInput] = useState("");
-  const [expanded, setExpanded] = useState(false);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
-  const [txDone, setTxDone]     = useState(false);
+  const [expanded, setExpanded]     = useState(false);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState("");
+  const [txDone, setTxDone]         = useState(false);
 
-  // Loading skeleton
   if (!m) {
     return (
       <div className="surface-card p-5 h-[270px] animate-pulse">
@@ -132,11 +131,11 @@ function MarketCard({
   const pos    = posRaw as unknown as Position | undefined;
   const payout = (payoutRaw ?? 0n) as bigint;
 
-  const total   = market.yesPool + market.noPool;
-  const yesPct  = total > 0n ? Number(market.yesPool * 10000n / total) / 100 : 50;
-  const noPct   = 100 - yesPct;
-  const yesPps  = calcPricePerShare(market.yesPool, total);
-  const noPps   = calcPricePerShare(market.noPool, total);
+  const total  = market.yesPool + market.noPool;
+  const yesPct = total > 0n ? Number(market.yesPool * 10000n / total) / 100 : 50;
+  const noPct  = 100 - yesPct;
+  const yesPps = calcPricePerShare(market.yesPool, total);
+  const noPps  = calcPricePerShare(market.noPool, total);
 
   const ended    = Date.now() > Number(market.endTime) * 1000;
   const isActive = !market.resolved && !ended;
@@ -146,12 +145,12 @@ function MarketCard({
   const hasNoPos  = pos && pos.noStake  > 0n;
   const hasPos    = hasYesPos || hasNoPos;
 
-  const userStake  = hasYesPos ? pos!.yesStake  : hasNoPos ? pos!.noStake  : 0n;
-  const userPool   = hasYesPos ? market.yesPool : hasNoPos ? market.noPool : 0n;
-  const userSide   = hasYesPos ? "YES" : "NO";
-  const userShares = hasPos ? calcShares(userStake, userPool, total) : 0;
+  const userStake           = hasYesPos ? pos!.yesStake  : hasNoPos ? pos!.noStake  : 0n;
+  const userPool            = hasYesPos ? market.yesPool : hasNoPos ? market.noPool : 0n;
+  const userSide            = hasYesPos ? "YES" : "NO";
+  const userShares          = hasPos ? calcShares(userStake, userPool, total) : 0;
   const userPotentialPayout = hasPos ? calcPotentialPayout(userStake, userPool, total) : 0;
-  const userProfit = userPotentialPayout - (hasPos ? Number(userStake) / 1e6 : 0);
+  const userProfit          = userPotentialPayout - (hasPos ? Number(userStake) / 1e6 : 0);
 
   const stakeNum      = parseFloat(stakeInput) || 0;
   const activePool    = side === "yes" ? market.yesPool : market.noPool;
@@ -181,7 +180,6 @@ function MarketCard({
     }
   }
 
-  // Status config
   const status = market.resolved
     ? { label: market.outcome ? "YES won" : "NO won", color: market.outcome ? "var(--yes-color)" : "var(--no-color)", dot: market.outcome ? "bg-emerald-400" : "bg-red-400" }
     : ended
@@ -190,14 +188,12 @@ function MarketCard({
 
   return (
     <div className="flex flex-col">
-      {/* Main card */}
       <div
         className={`surface-card p-5 flex flex-col gap-3.5 transition-all cursor-pointer ${
           expanded ? "rounded-b-none border-b-0 border-[var(--border-accent)]" : "hover:-translate-y-0.5"
         }`}
         onClick={() => isActive && setExpanded((v) => !v)}
       >
-        {/* Top accent line */}
         <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-[inherit]"
           style={{
             background: market.resolved ? "var(--border-subtle)"
@@ -205,7 +201,6 @@ function MarketCard({
               : "linear-gradient(90deg, var(--yes-color), var(--accent-primary))"
           }} />
 
-        {/* Header row */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: status.color, animation: isActive ? "pulse-dot 2s infinite" : "none" }} />
@@ -214,15 +209,12 @@ function MarketCard({
           <span className="text-[10px] text-[var(--text-muted)] font-mono">#{id.toString()}</span>
         </div>
 
-        {/* Question */}
         <p className="text-[13px] font-semibold text-[var(--text-primary)] leading-snug line-clamp-2 min-h-[2.6rem]">
           {market.question}
         </p>
 
-        {/* Mini sparkline */}
         <Sparkline yesPct={yesPct} />
 
-        {/* Probability bars */}
         <div className="flex gap-3">
           <div className="flex-1 flex flex-col gap-1">
             <div className="flex justify-between text-[11px]">
@@ -247,13 +239,11 @@ function MarketCard({
           </div>
         </div>
 
-        {/* Volume row */}
         <div className="flex justify-between text-[11px] text-[var(--text-muted)] pt-1 border-t border-[var(--border-subtle)]">
           <span>Vol <span className="text-[var(--text-secondary)] font-semibold">${formatUsdc(total)}</span></span>
           <span>Fees <span className="text-[var(--text-secondary)] font-semibold">${formatUsdc(market.feePool)}</span></span>
         </div>
 
-        {/* User position */}
         {hasPos && (
           <div className="rounded-xl px-3 py-2 flex items-center justify-between text-[11px]"
             style={{
@@ -271,7 +261,6 @@ function MarketCard({
           </div>
         )}
 
-        {/* Resolved payout */}
         {market.resolved && payout > 0n && (
           <div className="rounded-xl px-3 py-2 text-[11px] text-center font-semibold"
             style={{ background: "var(--yes-glow)", color: "var(--yes-color)", border: "1px solid rgba(16,185,129,0.2)" }}>
@@ -279,7 +268,6 @@ function MarketCard({
           </div>
         )}
 
-        {/* Success flash */}
         {txDone && (
           <div className="rounded-xl px-3 py-2 text-[11px] text-center font-semibold"
             style={{ background: "var(--yes-glow)", color: "var(--yes-color)", border: "1px solid rgba(16,185,129,0.2)" }}>
@@ -287,7 +275,6 @@ function MarketCard({
           </div>
         )}
 
-        {/* CTA */}
         {isActive && (
           <button
             onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
@@ -316,12 +303,10 @@ function MarketCard({
         )}
       </div>
 
-      {/* Expand panel */}
       <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expanded && isActive ? "max-h-[320px] opacity-100" : "max-h-0 opacity-0"}`}>
         <div className="surface-card rounded-t-none border-t-0 p-5 flex flex-col gap-3.5"
           style={{ borderColor: "var(--border-accent)" }}>
 
-          {/* YES / NO side switcher */}
           <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-elevated)" }}>
             {(["yes", "no"] as const).map((s) => (
               <button
@@ -339,7 +324,6 @@ function MarketCard({
             ))}
           </div>
 
-          {/* Stake input */}
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-sm font-semibold">$</span>
             <input
@@ -353,13 +337,12 @@ function MarketCard({
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[11px] text-[var(--text-muted)] font-semibold">USDC</span>
           </div>
 
-          {/* Live preview */}
           {stakeNum > 0 && (
             <div className="grid grid-cols-3 gap-2">
               {[
-                { label: "Shares",    val: previewShares.toFixed(2), color: "var(--text-primary)" },
-                { label: "Payout",    val: `$${previewPayout.toFixed(2)}`, color: "var(--yes-color)" },
-                { label: "Profit",    val: `+$${previewProfit.toFixed(2)}`, color: "var(--yes-color)" },
+                { label: "Shares", val: previewShares.toFixed(2), color: "var(--text-primary)" },
+                { label: "Payout", val: `$${previewPayout.toFixed(2)}`, color: "var(--yes-color)" },
+                { label: "Profit", val: `+$${previewProfit.toFixed(2)}`, color: "var(--yes-color)" },
               ].map(({ label, val, color }) => (
                 <div key={label} className="rounded-xl p-2.5 text-center" style={{ background: "var(--bg-elevated)" }}>
                   <p className="text-[10px] uppercase text-[var(--text-muted)] mb-0.5">{label}</p>
@@ -369,7 +352,6 @@ function MarketCard({
             </div>
           )}
 
-          {/* Price info */}
           <div className="flex justify-between text-[11px] text-[var(--text-muted)]">
             <span>Price/share: <span className="text-[var(--text-secondary)] font-semibold">{(activePps * 100).toFixed(1)}¢</span></span>
             <span>Max return: <span className="text-[var(--text-secondary)] font-semibold">{previewMult}×</span></span>
@@ -392,49 +374,298 @@ function MarketCard({
   );
 }
 
+// ── Pagination controls ───────────────────────────────────────────────────────
+function Pagination({
+  page,
+  totalPages,
+  onPrev,
+  onNext,
+  onPage,
+}: {
+  page: number;
+  totalPages: number;
+  onPrev: () => void;
+  onNext: () => void;
+  onPage: (p: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  // Show up to 5 page numbers around current
+  const pages: (number | "…")[] = [];
+  if (totalPages <= 7) {
+    for (let i = 0; i < totalPages; i++) pages.push(i);
+  } else {
+    pages.push(0);
+    if (page > 2) pages.push("…");
+    for (let i = Math.max(1, page - 1); i <= Math.min(totalPages - 2, page + 1); i++) pages.push(i);
+    if (page < totalPages - 3) pages.push("…");
+    pages.push(totalPages - 1);
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-1.5 mt-6">
+      <button
+        onClick={onPrev}
+        disabled={page === 0}
+        className="px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all disabled:opacity-30"
+        style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
+      >
+        ← Prev
+      </button>
+
+      {pages.map((p, i) =>
+        p === "…" ? (
+          <span key={`ellipsis-${i}`} className="px-1 text-[var(--text-muted)] text-[12px]">…</span>
+        ) : (
+          <button
+            key={p}
+            onClick={() => onPage(p as number)}
+            className="w-8 h-8 rounded-lg text-[12px] font-bold transition-all"
+            style={
+              p === page
+                ? { background: "var(--accent-primary)", color: "#fff", boxShadow: "0 2px 8px rgba(99,102,241,0.4)" }
+                : { background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }
+            }
+          >
+            {(p as number) + 1}
+          </button>
+        )
+      )}
+
+      <button
+        onClick={onNext}
+        disabled={page === totalPages - 1}
+        className="px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all disabled:opacity-30"
+        style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
+      >
+        Next →
+      </button>
+    </div>
+  );
+}
+
+// ── Tab button ────────────────────────────────────────────────────────────────
+function TabBtn({
+  active,
+  onClick,
+  children,
+  count,
+  color,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  count: number;
+  color: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all"
+      style={
+        active
+          ? { background: `${color}18`, color, border: `1px solid ${color}40`, boxShadow: `0 2px 12px ${color}20` }
+          : { background: "transparent", color: "var(--text-muted)", border: "1px solid transparent" }
+      }
+    >
+      {children}
+      <span
+        className="text-[11px] font-bold px-1.5 py-0.5 rounded-md min-w-[1.5rem] text-center"
+        style={
+          active
+            ? { background: `${color}25`, color }
+            : { background: "var(--bg-elevated)", color: "var(--text-muted)" }
+        }
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
+// ── Market List ───────────────────────────────────────────────────────────────
+
+// ── Static hook to read up to 150 markets (same pattern as AnalyticsTab) ─────
+// Rules of hooks require a fixed number of calls — we use enabled flags to skip
+function useAllMarketsData(count: number) {
+  const make = (id: number) => useReadContract({  // eslint-disable-line
+    address: MARKET_ADDR, abi: PREDICTION_MARKET_ABI,
+    functionName: "getMarket", args: [BigInt(id)],
+    query: { enabled: id < count },
+  });
+  /* eslint-disable react-hooks/rules-of-hooks */
+  const results = [
+    make(0),make(1),make(2),make(3),make(4),make(5),make(6),make(7),make(8),make(9),
+    make(10),make(11),make(12),make(13),make(14),make(15),make(16),make(17),make(18),make(19),
+    make(20),make(21),make(22),make(23),make(24),make(25),make(26),make(27),make(28),make(29),
+    make(30),make(31),make(32),make(33),make(34),make(35),make(36),make(37),make(38),make(39),
+    make(40),make(41),make(42),make(43),make(44),make(45),make(46),make(47),make(48),make(49),
+    make(50),make(51),make(52),make(53),make(54),make(55),make(56),make(57),make(58),make(59),
+    make(60),make(61),make(62),make(63),make(64),make(65),make(66),make(67),make(68),make(69),
+    make(70),make(71),make(72),make(73),make(74),make(75),make(76),make(77),make(78),make(79),
+    make(80),make(81),make(82),make(83),make(84),make(85),make(86),make(87),make(88),make(89),
+    make(90),make(91),make(92),make(93),make(94),make(95),make(96),make(97),make(98),make(99),
+    make(100),make(101),make(102),make(103),make(104),make(105),make(106),make(107),make(108),make(109),
+    make(110),make(111),make(112),make(113),make(114),make(115),make(116),make(117),make(118),make(119),
+    make(120),make(121),make(122),make(123),make(124),make(125),make(126),make(127),make(128),make(129),
+    make(130),make(131),make(132),make(133),make(134),make(135),make(136),make(137),make(138),make(139),
+    make(140),make(141),make(142),make(143),make(144),make(145),make(146),make(147),make(148),make(149),
+  ];
+  /* eslint-enable react-hooks/rules-of-hooks */
+  return results.slice(0, count).map((r, i) => ({
+    id: BigInt(i),
+    market: r.data as unknown as Market | undefined,
+  }));
+}
+
 // ── Market List ───────────────────────────────────────────────────────────────
 export function MarketList() {
   const { nextMarketId, predict } = useProtocol();
   const { address: walletAddress } = useAccount();
 
-  const ids = Array.from({ length: nextMarketId }, (_, i) => BigInt(i));
+  const [tab, setTab]   = useState<"active" | "resolved">("active");
+  const [page, setPage] = useState(0);
+
+  const count = Math.min(nextMarketId, 150);
+  const now   = Math.floor(Date.now() / 1000);
+
+  // Fetch all market data upfront with static hooks
+  const allMarkets = useAllMarketsData(count);
+
+  // Split into active vs resolved — newest first
+  const { activeIds, resolvedIds } = useMemo(() => {
+    const active: bigint[]   = [];
+    const resolved: bigint[] = [];
+
+    // Reverse so newest (highest id) comes first
+    const reversed = [...allMarkets].reverse();
+
+    for (const { id, market } of reversed) {
+      if (!market) {
+        // Still loading — put in active tentatively
+        active.push(id);
+        continue;
+      }
+      if (market.resolved) {
+        resolved.push(id);
+      } else {
+        active.push(id);
+      }
+    }
+    return { activeIds: active, resolvedIds: resolved };
+  }, [allMarkets]);
+
+  const currentIds  = tab === "active" ? activeIds : resolvedIds;
+  const totalPages  = Math.max(1, Math.ceil(currentIds.length / PAGE_SIZE));
+  const pageIds     = currentIds.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  function handleTabChange(newTab: "active" | "resolved") {
+    setTab(newTab);
+    setPage(0);
+  }
+
+  function handlePageChange(p: number) {
+    setPage(p);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  const loadedCount = allMarkets.filter((m) => m.market !== undefined).length;
+  const allLoaded   = loadedCount >= count;
 
   return (
     <div className="flex flex-col gap-5">
+
+      {/* Header row */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 sm:justify-between">
+        {/* Tabs */}
+        <div className="flex items-center gap-1 p-1 rounded-2xl"
+          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
+          <TabBtn
+            active={tab === "active"}
+            onClick={() => handleTabChange("active")}
+            count={activeIds.length}
+            color="var(--yes-color)"
+          >
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                style={{ animation: "pulse-dot 2s infinite" }} />
+              Active
+            </span>
+          </TabBtn>
+          <TabBtn
+            active={tab === "resolved"}
+            onClick={() => handleTabChange("resolved")}
+            count={resolvedIds.length}
+            color="#A78BFA"
+          >
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+              Resolved
+            </span>
+          </TabBtn>
+        </div>
+
+        {/* Status badge */}
+        <span className="badge badge-blue text-[11px]">
+          {allLoaded
+            ? `${nextMarketId} markets · page ${page + 1}/${totalPages}`
+            : `Loading ${loadedCount}/${count}…`}
+        </span>
+      </div>
+
       {/* Info banner */}
       <div className="rounded-xl px-4 py-3 flex items-center gap-3 text-[13px]"
         style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.18)" }}>
-        <svg className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+        <svg className="w-4 h-4 shrink-0 text-[var(--accent-secondary)]" fill="none"
+          viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round"
+            d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
         </svg>
         <span className="text-[var(--text-secondary)]">
-          Predict correctly → ArcIQ rises → higher yield multiplier & borrow limit
+          {tab === "active"
+            ? "Predict correctly → ArcIQ rises → higher yield multiplier & borrow limit"
+            : `${resolvedIds.length} markets resolved · claim your winnings below`}
         </span>
-        <span className="ml-auto badge badge-blue shrink-0">{nextMarketId} markets</span>
       </div>
 
-      {ids.length === 0 && (
+      {/* Empty state */}
+      {nextMarketId === 0 && (
         <div className="surface-card p-12 text-center">
-          <div className="w-12 h-12 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-            style={{ background: "var(--bg-elevated)" }}>
-            <svg className="w-6 h-6 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625z" />
-            </svg>
-          </div>
           <p className="text-[var(--text-muted)] text-sm">No markets yet. Create the first one!</p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
-        {ids.map((id) => (
-          <MarketCard
-            key={id.toString()}
-            id={id}
-            predict={predict}
-            walletAddress={walletAddress}
-          />
-        ))}
-      </div>
+      {/* Market grid */}
+      {pageIds.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
+          {pageIds.map((id) => (
+            <MarketCard
+              key={id.toString()}
+              id={id}
+              predict={predict}
+              walletAddress={walletAddress}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Empty tab state */}
+      {allLoaded && pageIds.length === 0 && nextMarketId > 0 && (
+        <div className="surface-card p-12 text-center">
+          <p className="text-[var(--text-muted)] text-sm">
+            {tab === "resolved" ? "No resolved markets yet." : "No active markets."}
+          </p>
+        </div>
+      )}
+
+      {/* Pagination */}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPrev={() => handlePageChange(Math.max(0, page - 1))}
+        onNext={() => handlePageChange(Math.min(totalPages - 1, page + 1))}
+        onPage={handlePageChange}
+      />
     </div>
   );
 }

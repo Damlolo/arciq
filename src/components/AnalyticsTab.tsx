@@ -25,13 +25,13 @@ function useMarketData(id: number, enabled: boolean) {
   });
 }
 
-// ─── Static hook for up to 50 markets ─────────────────────────────────────
+// ─── Static hook for up to 150 markets ────────────────────────────────────
 function useAllMarkets(count: number) {
   const hooks = [
-    useMarketData(0,count>0),  useMarketData(1,count>1),  useMarketData(2,count>2),
-    useMarketData(3,count>3),  useMarketData(4,count>4),  useMarketData(5,count>5),
-    useMarketData(6,count>6),  useMarketData(7,count>7),  useMarketData(8,count>8),
-    useMarketData(9,count>9),  useMarketData(10,count>10),useMarketData(11,count>11),
+    useMarketData(0,count>0),useMarketData(1,count>1),useMarketData(2,count>2),
+    useMarketData(3,count>3),useMarketData(4,count>4),useMarketData(5,count>5),
+    useMarketData(6,count>6),useMarketData(7,count>7),useMarketData(8,count>8),
+    useMarketData(9,count>9),useMarketData(10,count>10),useMarketData(11,count>11),
     useMarketData(12,count>12),useMarketData(13,count>13),useMarketData(14,count>14),
     useMarketData(15,count>15),useMarketData(16,count>16),useMarketData(17,count>17),
     useMarketData(18,count>18),useMarketData(19,count>19),useMarketData(20,count>20),
@@ -44,7 +44,40 @@ function useAllMarkets(count: number) {
     useMarketData(39,count>39),useMarketData(40,count>40),useMarketData(41,count>41),
     useMarketData(42,count>42),useMarketData(43,count>43),useMarketData(44,count>44),
     useMarketData(45,count>45),useMarketData(46,count>46),useMarketData(47,count>47),
-    useMarketData(48,count>48),useMarketData(49,count>49),
+    useMarketData(48,count>48),useMarketData(49,count>49),useMarketData(50,count>50),
+    useMarketData(51,count>51),useMarketData(52,count>52),useMarketData(53,count>53),
+    useMarketData(54,count>54),useMarketData(55,count>55),useMarketData(56,count>56),
+    useMarketData(57,count>57),useMarketData(58,count>58),useMarketData(59,count>59),
+    useMarketData(60,count>60),useMarketData(61,count>61),useMarketData(62,count>62),
+    useMarketData(63,count>63),useMarketData(64,count>64),useMarketData(65,count>65),
+    useMarketData(66,count>66),useMarketData(67,count>67),useMarketData(68,count>68),
+    useMarketData(69,count>69),useMarketData(70,count>70),useMarketData(71,count>71),
+    useMarketData(72,count>72),useMarketData(73,count>73),useMarketData(74,count>74),
+    useMarketData(75,count>75),useMarketData(76,count>76),useMarketData(77,count>77),
+    useMarketData(78,count>78),useMarketData(79,count>79),useMarketData(80,count>80),
+    useMarketData(81,count>81),useMarketData(82,count>82),useMarketData(83,count>83),
+    useMarketData(84,count>84),useMarketData(85,count>85),useMarketData(86,count>86),
+    useMarketData(87,count>87),useMarketData(88,count>88),useMarketData(89,count>89),
+    useMarketData(90,count>90),useMarketData(91,count>91),useMarketData(92,count>92),
+    useMarketData(93,count>93),useMarketData(94,count>94),useMarketData(95,count>95),
+    useMarketData(96,count>96),useMarketData(97,count>97),useMarketData(98,count>98),
+    useMarketData(99,count>99),useMarketData(100,count>100),useMarketData(101,count>101),
+    useMarketData(102,count>102),useMarketData(103,count>103),useMarketData(104,count>104),
+    useMarketData(105,count>105),useMarketData(106,count>106),useMarketData(107,count>107),
+    useMarketData(108,count>108),useMarketData(109,count>109),useMarketData(110,count>110),
+    useMarketData(111,count>111),useMarketData(112,count>112),useMarketData(113,count>113),
+    useMarketData(114,count>114),useMarketData(115,count>115),useMarketData(116,count>116),
+    useMarketData(117,count>117),useMarketData(118,count>118),useMarketData(119,count>119),
+    useMarketData(120,count>120),useMarketData(121,count>121),useMarketData(122,count>122),
+    useMarketData(123,count>123),useMarketData(124,count>124),useMarketData(125,count>125),
+    useMarketData(126,count>126),useMarketData(127,count>127),useMarketData(128,count>128),
+    useMarketData(129,count>129),useMarketData(130,count>130),useMarketData(131,count>131),
+    useMarketData(132,count>132),useMarketData(133,count>133),useMarketData(134,count>134),
+    useMarketData(135,count>135),useMarketData(136,count>136),useMarketData(137,count>137),
+    useMarketData(138,count>138),useMarketData(139,count>139),useMarketData(140,count>140),
+    useMarketData(141,count>141),useMarketData(142,count>142),useMarketData(143,count>143),
+    useMarketData(144,count>144),useMarketData(145,count>145),useMarketData(146,count>146),
+    useMarketData(147,count>147),useMarketData(148,count>148),useMarketData(149,count>149),
   ];
   return hooks.slice(0, count).map(r => r.data as unknown as Market | undefined);
 }
@@ -232,7 +265,7 @@ function OutcomeDonut({ markets }: { markets: (Market | undefined)[] }) {
 export function AnalyticsTab() {
   const { nextMarketId, totalPredictionFeesReceived, totalBorrowInterestReceived } = useProtocol();
 
-  const count   = Math.min(nextMarketId, 50);
+  const count   = Math.min(nextMarketId, 150);
   const ids     = Array.from({ length: count }, (_, i) => i);
   const now     = Math.floor(Date.now() / 1000);
   const markets = useAllMarkets(count);
