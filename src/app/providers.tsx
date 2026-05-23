@@ -1,14 +1,38 @@
 "use client";
-import { useState, useEffect } from "react";
+
+import { createContext, useContext, useState, useEffect } from "react";
 import { WagmiProvider } from "wagmi";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { wagmiConfig, queryClient } from "@/lib/wagmi";
 
+// ── Theme context ─────────────────────────────────────────────────────────────
+interface ThemeCtx { isDark: boolean; toggle: () => void; }
+export const ThemeContext = createContext<ThemeCtx>({ isDark: true, toggle: () => {} });
+export function useTheme() { return useContext(ThemeContext); }
+
+// ── Providers ────────────────────────────────────────────────────────────────
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
+
+  // Initialise from localStorage; fall back to dark
   const [isDark, setIsDark] = useState(true);
 
-  // Toggle .light on <html> — globals.css reads this to flip all hardcoded dark classes
+  // On first mount: read saved preference or system preference
+  useEffect(() => {
+    const saved = localStorage.getItem("arciq-theme");
+    if (saved === "light") {
+      setIsDark(false);
+    } else if (saved === "dark") {
+      setIsDark(true);
+    } else {
+      // No preference saved — use system default
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      setIsDark(prefersDark);
+    }
+    setMounted(true);
+  }, []);
+
+  // Apply class to <html> whenever isDark changes
   useEffect(() => {
     const root = document.documentElement;
     if (isDark) {
@@ -16,24 +40,22 @@ export function Providers({ children }: { children: React.ReactNode }) {
     } else {
       root.classList.add("light");
     }
-  }, [isDark]);
+    // Persist
+    if (mounted) {
+      localStorage.setItem("arciq-theme", isDark ? "dark" : "light");
+    }
+  }, [isDark, mounted]);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  function toggle() { setIsDark(p => !p); }
 
   return (
-    <ThemeContext.Provider value={{ isDark, toggle: () => setIsDark(p => !p) }}>
+    <ThemeContext.Provider value={{ isDark, toggle }}>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
+          {/* Prevent flash of wrong theme — render nothing until mounted */}
           {mounted ? children : null}
         </QueryClientProvider>
       </WagmiProvider>
     </ThemeContext.Provider>
   );
 }
-
-import { createContext, useContext } from "react";
-interface ThemeCtx { isDark: boolean; toggle: () => void; }
-export const ThemeContext = createContext<ThemeCtx>({ isDark: true, toggle: () => {} });
-export function useTheme() { return useContext(ThemeContext); }
