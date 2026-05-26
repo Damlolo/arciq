@@ -270,7 +270,6 @@ function PredictTab() {
           </div>
           <div>
             <h2 className="text-xl font-black text-[var(--text-primary)] tracking-tight mb-1">Create Market</h2>
-            <p className="text-[13px] text-[var(--text-secondary)] mb-4">Stake 1,000 USDC to launch your own prediction market.</p>
             <CreateMarketPanel score={score} dark={isDark} />
           </div>
         </div>
