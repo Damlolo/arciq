@@ -485,7 +485,7 @@ function TabBtn({
 
 // ── Market List ───────────────────────────────────────────────────────────────
 
-// ── Static hook to read up to 150 markets (same pattern as AnalyticsTab) ─────
+// ── Static hook to read up to 300 markets (same pattern as AnalyticsTab) ─────
 // Rules of hooks require a fixed number of calls — we use enabled flags to skip
 function useAllMarketsData(count: number) {
   const make = (id: number) => useReadContract({  // eslint-disable-line
@@ -510,6 +510,21 @@ function useAllMarketsData(count: number) {
     make(120),make(121),make(122),make(123),make(124),make(125),make(126),make(127),make(128),make(129),
     make(130),make(131),make(132),make(133),make(134),make(135),make(136),make(137),make(138),make(139),
     make(140),make(141),make(142),make(143),make(144),make(145),make(146),make(147),make(148),make(149),
+    make(150),make(151),make(152),make(153),make(154),make(155),make(156),make(157),make(158),make(159),
+    make(160),make(161),make(162),make(163),make(164),make(165),make(166),make(167),make(168),make(169),
+    make(170),make(171),make(172),make(173),make(174),make(175),make(176),make(177),make(178),make(179),
+    make(180),make(181),make(182),make(183),make(184),make(185),make(186),make(187),make(188),make(189),
+    make(190),make(191),make(192),make(193),make(194),make(195),make(196),make(197),make(198),make(199),
+    make(200),make(201),make(202),make(203),make(204),make(205),make(206),make(207),make(208),make(209),
+    make(210),make(211),make(212),make(213),make(214),make(215),make(216),make(217),make(218),make(219),
+    make(220),make(221),make(222),make(223),make(224),make(225),make(226),make(227),make(228),make(229),
+    make(230),make(231),make(232),make(233),make(234),make(235),make(236),make(237),make(238),make(239),
+    make(240),make(241),make(242),make(243),make(244),make(245),make(246),make(247),make(248),make(249),
+    make(250),make(251),make(252),make(253),make(254),make(255),make(256),make(257),make(258),make(259),
+    make(260),make(261),make(262),make(263),make(264),make(265),make(266),make(267),make(268),make(269),
+    make(270),make(271),make(272),make(273),make(274),make(275),make(276),make(277),make(278),make(279),
+    make(280),make(281),make(282),make(283),make(284),make(285),make(286),make(287),make(288),make(289),
+    make(290),make(291),make(292),make(293),make(294),make(295),make(296),make(297),make(298),make(299),
   ];
   /* eslint-enable react-hooks/rules-of-hooks */
   return results.slice(0, count).map((r, i) => ({
@@ -526,7 +541,7 @@ export function MarketList() {
   const [tab, setTab]   = useState<"active" | "resolved">("active");
   const [page, setPage] = useState(0);
 
-  const count = Math.min(nextMarketId, 150);
+  const count = Math.min(nextMarketId, 300);
   const now   = Math.floor(Date.now() / 1000);
 
   // Fetch all market data upfront with static hooks
