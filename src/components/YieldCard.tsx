@@ -86,15 +86,16 @@ export function YieldCard() {
   const [deploying,     setDeploying]     = useState(false);
   const [eliteClaiming, setEliteClaiming] = useState(false);
   const [txHash,        setTxHash]        = useState<string | null>(null);
+  const [error,         setError]         = useState<string | null>(null);
 
   const utilisation    = totalDeposits > 0n
     ? Math.round((Number(totalBorrowed) / Number(totalDeposits)) * 100) : 0;
   const countdownLabel = canDistribute ? "Available now" : formatCountdown(secondsUntilDistribution);
 
   async function run(fn: () => Promise<string | undefined>, setter: (v: boolean) => void) {
-    setter(true); setTxHash(null);
+    setter(true); setTxHash(null); setError(null);
     try { const h = await fn(); if (h) setTxHash(h); }
-    catch (e) { console.error(e); }
+    catch (e: any) { console.error(e); setError(e?.message ?? "Transaction failed"); }
     finally { setter(false); }
   }
 
@@ -237,6 +238,14 @@ export function YieldCard() {
           </button>
         </div>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="rounded-xl px-3 py-2.5 text-[12px]"
+          style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444" }}>
+          {error}
+        </div>
+      )}
 
       {/* TX link */}
       {txHash && (

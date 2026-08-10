@@ -1,8 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { useAccount, useConnect, useDisconnect } from "@/lib/circleWallet";
 import { formatUsdc } from "../lib/contracts";
 import { useProtocol } from "../hooks/useProtocol";
 
@@ -24,7 +23,7 @@ export function ConnectButton() {
   if (!isConnected) {
     return (
       <button
-        onClick={() => connect({ connector: injected() })}
+        onClick={() => connect()}
         disabled={isPending}
         className="btn-primary flex items-center gap-2 text-[13px] px-4 py-2 disabled:opacity-60"
       >

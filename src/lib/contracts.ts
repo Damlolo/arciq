@@ -21,13 +21,18 @@ export const CONTRACT_ADDRESSES = {
 
 // ─── Arc Testnet chain config ─────────────────────────────────────────────────
 
+// Set NEXT_PUBLIC_ARC_RPC_URL to a dedicated RPC endpoint (QuickNode, Alchemy,
+// dRPC, etc.) once you have one — Arc's public endpoint is rate-limited hard
+// enough that it can't reliably serve a dApp reading hundreds of markets.
+const ARC_RPC_URL = process.env.NEXT_PUBLIC_ARC_RPC_URL || "https://rpc.testnet.arc.network";
+
 export const ARC_TESTNET = {
   id: 5042002,
   name: "Arc Testnet",
   network: "arcTestnet",
   nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 6 },
   rpcUrls: {
-    default: { http: ["https://rpc.testnet.arc.network"] },
+    default: { http: [ARC_RPC_URL] },
     public:  { http: ["https://rpc.testnet.arc.network"] },
   },
   blockExplorers: {
@@ -234,4 +239,29 @@ export function formatCountdown(seconds: number): string {
   if (d > 0) return `${d}d ${h}h`;
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
+}
+
+// ─── Score tier helpers ───────────────────────────────────────────────────────
+// Client-side display helpers — mirror the same 50/60/70/80/90 brackets used
+// for the on-chain LTV fallback in useProtocol.ts, so labels stay consistent
+// wherever a score shows up.
+
+/** Returns a 0-5 tier index: 0 = unranked, 1 = Novice ... 5 = Oracle. */
+export function scoreTier(score: number): number {
+  if (score <= 0) return 0;
+  if (score >= 90) return 5;
+  if (score >= 80) return 4;
+  if (score >= 70) return 3;
+  if (score >= 60) return 2;
+  return 1;
+}
+
+/** Approximate display multiplier for a given score (e.g. "1.30x"). */
+export function scoreToMultiplier(score: number): string {
+  const mult =
+    score >= 90 ? 1.5 :
+    score >= 80 ? 1.3 :
+    score >= 70 ? 1.15 :
+    score >= 60 ? 1.05 : 1.0;
+  return `${mult.toFixed(2)}x`;
 }

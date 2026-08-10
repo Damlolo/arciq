@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useReadContract, useAccount } from "wagmi";
+import { useState, useMemo, useEffect } from "react";
+import { useReadContract, usePublicClient } from "wagmi";
+import { useAccount } from "@/lib/circleWallet";
 import { useProtocol } from "../hooks/useProtocol";
 import { formatUsdc, parseUsdc } from "../lib/contracts";
 import { CONTRACT_ADDRESSES, PREDICTION_MARKET_ABI } from "../lib/contracts";
@@ -90,7 +91,7 @@ function MarketCard({
   walletAddress,
 }: {
   id: bigint;
-  predict: (id: bigint, yes: boolean, stake: string) => Promise<void>;
+  predict: (id: bigint, yes: boolean, stake: string) => Promise<`0x${string}` | void>;
   walletAddress?: `0x${string}`;
 }) {
   const { data: m }         = useMarketData(id);
@@ -485,52 +486,82 @@ function TabBtn({
 
 // ── Market List ───────────────────────────────────────────────────────────────
 
-// ── Static hook to read up to 300 markets (same pattern as AnalyticsTab) ─────
-// Rules of hooks require a fixed number of calls — we use enabled flags to skip
+// ── Batched fetch for up to 300 markets ──────────────────────────────────────
+// The old approach fired one useReadContract per market (up to 300 at once),
+// which floods Arc Testnet's public RPC and gets rate-limited (429s) once you
+// have a real number of markets. This fetches through a single client in
+// small throttled batches instead — renders progressively as batches land.
+// Module-level cache — persists across component remounts and tab switches
+// for the lifetime of the page (only clears on a full reload). Arc Testnet's
+// public RPC rate-limits hard enough that re-fetching 270 markets every time
+// you switch tabs isn't viable — this way that cost is paid once per session.
+const marketCache = new Map<number, Market>();
+
 function useAllMarketsData(count: number) {
-  const make = (id: number) => useReadContract({  // eslint-disable-line
-    address: MARKET_ADDR, abi: PREDICTION_MARKET_ABI,
-    functionName: "getMarket", args: [BigInt(id)],
-    query: { enabled: id < count },
-  });
-  /* eslint-disable react-hooks/rules-of-hooks */
-  const results = [
-    make(0),make(1),make(2),make(3),make(4),make(5),make(6),make(7),make(8),make(9),
-    make(10),make(11),make(12),make(13),make(14),make(15),make(16),make(17),make(18),make(19),
-    make(20),make(21),make(22),make(23),make(24),make(25),make(26),make(27),make(28),make(29),
-    make(30),make(31),make(32),make(33),make(34),make(35),make(36),make(37),make(38),make(39),
-    make(40),make(41),make(42),make(43),make(44),make(45),make(46),make(47),make(48),make(49),
-    make(50),make(51),make(52),make(53),make(54),make(55),make(56),make(57),make(58),make(59),
-    make(60),make(61),make(62),make(63),make(64),make(65),make(66),make(67),make(68),make(69),
-    make(70),make(71),make(72),make(73),make(74),make(75),make(76),make(77),make(78),make(79),
-    make(80),make(81),make(82),make(83),make(84),make(85),make(86),make(87),make(88),make(89),
-    make(90),make(91),make(92),make(93),make(94),make(95),make(96),make(97),make(98),make(99),
-    make(100),make(101),make(102),make(103),make(104),make(105),make(106),make(107),make(108),make(109),
-    make(110),make(111),make(112),make(113),make(114),make(115),make(116),make(117),make(118),make(119),
-    make(120),make(121),make(122),make(123),make(124),make(125),make(126),make(127),make(128),make(129),
-    make(130),make(131),make(132),make(133),make(134),make(135),make(136),make(137),make(138),make(139),
-    make(140),make(141),make(142),make(143),make(144),make(145),make(146),make(147),make(148),make(149),
-    make(150),make(151),make(152),make(153),make(154),make(155),make(156),make(157),make(158),make(159),
-    make(160),make(161),make(162),make(163),make(164),make(165),make(166),make(167),make(168),make(169),
-    make(170),make(171),make(172),make(173),make(174),make(175),make(176),make(177),make(178),make(179),
-    make(180),make(181),make(182),make(183),make(184),make(185),make(186),make(187),make(188),make(189),
-    make(190),make(191),make(192),make(193),make(194),make(195),make(196),make(197),make(198),make(199),
-    make(200),make(201),make(202),make(203),make(204),make(205),make(206),make(207),make(208),make(209),
-    make(210),make(211),make(212),make(213),make(214),make(215),make(216),make(217),make(218),make(219),
-    make(220),make(221),make(222),make(223),make(224),make(225),make(226),make(227),make(228),make(229),
-    make(230),make(231),make(232),make(233),make(234),make(235),make(236),make(237),make(238),make(239),
-    make(240),make(241),make(242),make(243),make(244),make(245),make(246),make(247),make(248),make(249),
-    make(250),make(251),make(252),make(253),make(254),make(255),make(256),make(257),make(258),make(259),
-    make(260),make(261),make(262),make(263),make(264),make(265),make(266),make(267),make(268),make(269),
-    make(270),make(271),make(272),make(273),make(274),make(275),make(276),make(277),make(278),make(279),
-    make(280),make(281),make(282),make(283),make(284),make(285),make(286),make(287),make(288),make(289),
-    make(290),make(291),make(292),make(293),make(294),make(295),make(296),make(297),make(298),make(299),
-  ];
-  /* eslint-enable react-hooks/rules-of-hooks */
-  return results.slice(0, count).map((r, i) => ({
-    id: BigInt(i),
-    market: r.data as unknown as Market | undefined,
-  }));
+  const publicClient = usePublicClient();
+  const [tick, setTick] = useState(0); // bumped to force a re-render as batches land
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!publicClient || count === 0) return;
+
+    const missingIds: number[] = [];
+    for (let i = 0; i < count; i++) if (!marketCache.has(i)) missingIds.push(i);
+    if (missingIds.length === 0) return; // everything already cached, nothing to do
+
+    let cancelled = false;
+    setLoading(true);
+
+    const BATCH_SIZE = 5;
+    const BATCH_DELAY_MS = 2000;
+    const MAX_RETRIES = 4;
+
+    async function fetchOne(id: number, attempt = 0): Promise<void> {
+      try {
+        const data = await publicClient!.readContract({
+          address: MARKET_ADDR,
+          abi: PREDICTION_MARKET_ABI,
+          functionName: "getMarket",
+          args: [BigInt(id)],
+        } as any);
+        marketCache.set(id, data as unknown as Market);
+      } catch (err: any) {
+        if (cancelled || attempt >= MAX_RETRIES) return; // give up quietly, others keep loading
+        const msg = String(err?.shortMessage ?? err?.message ?? err).toLowerCase();
+        const rateLimited = msg.includes("429") || msg.includes("too many requests") || msg.includes("rate limit");
+        // Rate-limit errors get real backoff; anything else retries quickly.
+        const backoff = rateLimited ? 3000 * (attempt + 1) : 1000;
+        await new Promise((r) => setTimeout(r, backoff));
+        if (!cancelled) return fetchOne(id, attempt + 1);
+      }
+    }
+
+    async function fetchAll() {
+      for (let start = 0; start < missingIds.length; start += BATCH_SIZE) {
+        if (cancelled) return;
+        const batchIds = missingIds.slice(start, start + BATCH_SIZE);
+        await Promise.all(batchIds.map((id) => fetchOne(id)));
+        if (cancelled) return;
+        setTick((n) => n + 1); // progressive render as each batch lands
+        if (start + BATCH_SIZE < missingIds.length) {
+          await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+        }
+      }
+      if (!cancelled) setLoading(false);
+    }
+
+    fetchAll();
+    return () => { cancelled = true; };
+  }, [publicClient, count]);
+
+  const results = useMemo(() => {
+    const out: { id: bigint; market: Market | undefined }[] = [];
+    for (let i = 0; i < count; i++) out.push({ id: BigInt(i), market: marketCache.get(i) });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [count, tick]);
+
+  return { results, loading };
 }
 
 // ── Market List ───────────────────────────────────────────────────────────────
@@ -544,8 +575,8 @@ export function MarketList() {
   const count = Math.min(nextMarketId, 300);
   const now   = Math.floor(Date.now() / 1000);
 
-  // Fetch all market data upfront with static hooks
-  const allMarkets = useAllMarketsData(count);
+  // Fetch all market data via throttled batches (avoids RPC rate-limiting)
+  const { results: allMarkets, loading: marketsLoading } = useAllMarketsData(count);
 
   // Split into active vs resolved — newest first
   const { activeIds, resolvedIds } = useMemo(() => {
@@ -585,7 +616,7 @@ export function MarketList() {
   }
 
   const loadedCount = allMarkets.filter((m) => m.market !== undefined).length;
-  const allLoaded   = loadedCount >= count;
+  const allLoaded   = !marketsLoading;
 
   return (
     <div className="flex flex-col gap-5">

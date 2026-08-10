@@ -4,6 +4,8 @@ import { createContext, useContext, useState, useEffect } from "react";
 import { WagmiProvider } from "wagmi";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { wagmiConfig, queryClient } from "@/lib/wagmi";
+import { CircleWalletProvider } from "@/lib/circleWallet";
+import { EmailAuthModal } from "@/components/EmailAuthModal";
 
 // ── Theme context ─────────────────────────────────────────────────────────────
 interface ThemeCtx { isDark: boolean; toggle: () => void; }
@@ -52,8 +54,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeContext.Provider value={{ isDark, toggle }}>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          {/* Prevent flash of wrong theme — render nothing until mounted */}
-          {mounted ? children : null}
+          <CircleWalletProvider>
+            {/* Prevent flash of wrong theme — render nothing until mounted */}
+            {mounted ? children : null}
+            <EmailAuthModal />
+          </CircleWalletProvider>
         </QueryClientProvider>
       </WagmiProvider>
     </ThemeContext.Provider>

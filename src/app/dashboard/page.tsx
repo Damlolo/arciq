@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { useAccount, useConnect, useDisconnect } from "@/lib/circleWallet";
 import { useTheme } from "../providers";
 import { useProtocol } from "../../hooks/useProtocol";
 import { Navbar } from "../../components/Navbar";
@@ -102,7 +101,7 @@ function ConnectWalletGate() {
             </p>
 
             <button
-              onClick={() => connect({ connector: injected() })}
+              onClick={() => connect()}
               disabled={isPending}
               className="btn-primary w-full flex items-center justify-center gap-3 py-4 text-[15px] mb-4 disabled:opacity-60"
             >
@@ -279,15 +278,70 @@ function PredictTab() {
 }
 
 function FaucetTab() {
+  const { address } = useAccount();
+  const { usdcBalance, sendUsdc } = useProtocol();
+
+  const [copied, setCopied] = useState(false);
+  const [sendTo, setSendTo] = useState("");
+  const [sendAmount, setSendAmount] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendTxHash, setSendTxHash] = useState<string | null>(null);
+
+  async function handleCopy() {
+    if (!address) return;
+    await navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (!sendTo || !sendAmount) return;
+    setSending(true);
+    setSendError(null);
+    setSendTxHash(null);
+    try {
+      const tx = await sendUsdc(sendTo as `0x${string}`, sendAmount);
+      setSendTxHash(tx as string);
+      setSendTo("");
+      setSendAmount("");
+    } catch (err: any) {
+      setSendError(err.message ?? "Transfer failed");
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-5">
-      {/* Header */}
+      {/* Your address — this is what you copy to receive funds */}
+      <div className="surface-card p-5">
+        <p className="text-[11px] font-bold tracking-[0.12em] uppercase text-[var(--text-muted)] mb-3">
+          Your Wallet Address · Receive funds here
+        </p>
+        <div className="flex items-center gap-2 rounded-xl p-3.5"
+          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
+          <p className="text-[13px] font-mono break-all flex-1 text-[var(--text-primary)]">{address}</p>
+          <button onClick={handleCopy}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors"
+            style={{ background: copied ? "var(--accent-primary)" : "var(--bg-surface)", color: copied ? "white" : "var(--text-secondary)" }}>
+            {copied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+        <p className="text-[12px] text-[var(--text-secondary)] mt-2">
+          Anyone can send Arc Testnet USDC to this address — paste it into Circle's faucet below,
+          or share it to receive funds from someone else.
+        </p>
+      </div>
+
+      {/* Faucet */}
       <div className="flex items-start gap-4 mb-2">
         <Image src="/usdc-logo.png" alt="USDC" width={52} height={52} className="rounded-full object-contain shrink-0" />
         <div>
           <h2 className="text-xl font-black text-[var(--text-primary)] tracking-tight">USDC Testnet Faucet</h2>
           <p className="text-[13px] text-[var(--text-secondary)] mt-1 leading-relaxed">
-            Get testnet USDC from Circle's official faucet. Connect your wallet, select Arc Testnet, and tokens arrive in seconds.
+            Get testnet USDC from Circle's official faucet — just paste the address above, no wallet connection needed.
           </p>
         </div>
       </div>
@@ -301,11 +355,10 @@ function FaucetTab() {
         <div>
           <p className="text-[13px] font-semibold mb-2 text-[var(--text-primary)]">How to get testnet USDC</p>
           <ol className="text-[12px] space-y-1 list-decimal list-inside text-[var(--text-secondary)]">
+            <li>Copy your address above</li>
             <li>Click the button below to open Circle's faucet</li>
-            <li>Connect your wallet on the faucet page</li>
-            <li>Select the Arc testnet (Chain ID 5042002)</li>
-            <li>Request USDC — funds appear in your wallet shortly</li>
-            <li>Return here to deposit into the vault and start earning</li>
+            <li>Paste your address, select Arc Testnet, and submit — no wallet connect needed</li>
+            <li>Funds arrive in seconds — return here and refresh to see the new balance</li>
           </ol>
         </div>
       </div>
@@ -317,6 +370,61 @@ function FaucetTab() {
         Open Circle USDC Faucet
         {Icons.externalLink}
       </a>
+
+      {/* Send / withdraw */}
+      <div className="surface-card p-5">
+        <p className="text-[11px] font-bold tracking-[0.12em] uppercase text-[var(--text-muted)] mb-1">
+          Send / Withdraw USDC
+        </p>
+        <p className="text-[12px] text-[var(--text-secondary)] mb-4">
+          Balance: <span className="font-bold text-[var(--text-primary)]">{formatUsdc(usdcBalance ?? 0n)}</span>
+        </p>
+        <form onSubmit={handleSend} className="space-y-3">
+          <div>
+            <label className="text-[11px] text-[var(--text-muted)] block mb-1">Destination address</label>
+            <input
+              type="text"
+              required
+              placeholder="0x..."
+              value={sendTo}
+              onChange={(e) => setSendTo(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border text-sm font-mono text-[var(--text-primary)]"
+              style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-[var(--text-muted)] block mb-1">Amount (USDC)</label>
+            <input
+              type="number"
+              required
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+              value={sendAmount}
+              onChange={(e) => setSendAmount(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border text-sm text-[var(--text-primary)]"
+              style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
+            />
+          </div>
+          <button type="submit" disabled={sending || !sendTo || !sendAmount}
+            className="btn-primary w-full py-3 text-[14px] disabled:opacity-60">
+            {sending ? "Sending…" : "Send"}
+          </button>
+        </form>
+
+        {sendError && (
+          <div className="mt-3 px-3 py-2.5 rounded-xl" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
+            <p className="text-[12px] text-red-500">{sendError}</p>
+          </div>
+        )}
+        {sendTxHash && (
+          <a href={`https://testnet.arcscan.app/tx/${sendTxHash}`} target="_blank" rel="noopener noreferrer"
+            className="mt-3 flex items-center gap-2 text-[12px] text-[var(--accent-secondary)] hover:underline">
+            {Icons.externalLink}
+            Sent — view transaction on ArcScan
+          </a>
+        )}
+      </div>
 
       {/* Network details */}
       <div className="surface-card p-5">

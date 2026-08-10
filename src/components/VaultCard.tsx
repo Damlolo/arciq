@@ -19,6 +19,7 @@ export function VaultCard() {
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [txHash, setTxHash]   = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
 
   // Pool APY from completed epoch data + external yield source only.
   // Multiplier is shown separately — it applies at claim time, not to the pool rate.
@@ -35,11 +36,15 @@ export function VaultCard() {
     if (!amount || isNaN(Number(amount))) return;
     setLoading(true);
     setTxHash(null);
+    setError(null);
     try {
       const hash = tab === "deposit" ? await deposit(amount) : await withdraw(amount);
       setTxHash(hash);
       setAmount("");
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message ?? "Transaction failed");
+    }
     finally { setLoading(false); }
   }
 
@@ -220,6 +225,14 @@ export function VaultCard() {
           ) : tab}
         </button>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="rounded-xl px-3 py-2.5 text-[12px]"
+          style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444" }}>
+          {error}
+        </div>
+      )}
 
       {/* TX hash */}
       {txHash && (

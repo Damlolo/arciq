@@ -10,10 +10,13 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@circle-fin/user-controlled-wallets": "^10.8.0",
+    "@circle-fin/w3s-pw-web-sdk": "^1.1.11",
     "@tanstack/react-query": "^5.0.0",
     "next": "14.2.3",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
+    "server-only": "^0.0.1",
     "viem": "^2.0.0",
     "wagmi": "^2.0.0"
   },

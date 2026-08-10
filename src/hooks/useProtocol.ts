@@ -14,7 +14,8 @@
  *   - USYC balance read added for wallet display.
  */
 
-import { useAccount, useReadContract, useWriteContract, usePublicClient } from "wagmi";
+import { useReadContract } from "wagmi";
+import { useAccount, useWriteContract } from "@/lib/circleWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import { parseUnits } from "viem";
 import {
@@ -45,7 +46,6 @@ function u(amount: string) {
 export function useProtocol() {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
-  const publicClient = usePublicClient();
   const queryClient  = useQueryClient();
 
   // ─── Score & reputation ────────────────────────────────────────────────
@@ -296,10 +296,12 @@ export function useProtocol() {
     await queryClient.invalidateQueries();
   }
 
-  async function waitAndRefresh(txHash: `0x${string}`) {
-    if (publicClient) {
-      await publicClient.waitForTransactionReceipt({ hash: txHash });
-    }
+  async function waitAndRefresh(_txHash: `0x${string}`) {
+    // Circle's writeContract (see lib/circleWallet.tsx) already blocks until
+    // the transaction reaches CONFIRMED/COMPLETE before resolving, so there's
+    // no need to separately poll Arc's RPC for a receipt here too — that was
+    // a second polling loop stacked on Circle's own, with no timeout, and it
+    // could hang indefinitely if the public RPC got rate-limited.
     await invalidateAll();
   }
 
@@ -313,10 +315,19 @@ export function useProtocol() {
     });
   }
 
+  async function sendUsdc(to: `0x${string}`, amount: string) {
+    const tx = await writeContractAsync({
+      address: USDC, abi: ERC20_ABI,
+      functionName: "transfer",
+      args: [to, u(amount)],
+    });
+    await waitAndRefresh(tx as `0x${string}`);
+    return tx;
+  }
+
   async function deposit(amount: string) {
     if ((usdcAllowanceVault ?? 0n) < u(amount)) {
-      const approveTx = await approveUsdc(VAULT, amount);
-      if (publicClient) await publicClient.waitForTransactionReceipt({ hash: approveTx as `0x${string}` });
+      await approveUsdc(VAULT, amount);
     }
     const tx = await writeContractAsync({
       address: VAULT, abi: VAULT_ABI,
@@ -375,8 +386,7 @@ export function useProtocol() {
 
   async function predict(marketId: bigint, yes: boolean, amount: string) {
     if ((usdcAllowanceMarket ?? 0n) < u(amount)) {
-      const approveTx = await approveUsdc(MARKET, amount);
-      if (publicClient) await publicClient.waitForTransactionReceipt({ hash: approveTx as `0x${string}` });
+      await approveUsdc(MARKET, amount);
     }
     const tx = await writeContractAsync({
       address: MARKET, abi: PREDICTION_MARKET_ABI,
@@ -399,8 +409,7 @@ export function useProtocol() {
 
   async function borrow(collateral: string, amount: string) {
     if ((usdcAllowanceLending ?? 0n) < u(collateral)) {
-      const approveTx = await approveUsdc(LENDING, collateral);
-      if (publicClient) await publicClient.waitForTransactionReceipt({ hash: approveTx as `0x${string}` });
+      await approveUsdc(LENDING, collateral);
     }
     const tx = await writeContractAsync({
       address: LENDING, abi: LENDING_ENGINE_ABI,
@@ -520,5 +529,6 @@ export function useProtocol() {
     repay,
     liquidate,
     approveUsdc,
+    sendUsdc,
   };
 }

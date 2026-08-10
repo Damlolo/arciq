@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useWriteContract } from "wagmi";
+import { useAccount, useWriteContract } from "@/lib/circleWallet";
 import { useProtocol } from "@/hooks/useProtocol";
 import {
   CONTRACT_ADDRESSES,
