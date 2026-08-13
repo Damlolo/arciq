@@ -33,7 +33,7 @@ export function ScoreCard() {
       {/* Header */}
       <div className="relative flex items-center justify-between">
         <div>
-          <p className="text-[11px] font-bold tracking-[0.12em] uppercase text-[var(--text-muted)]">ArcIQ Score</p>
+          <p className="text-[11px] font-bold tracking-[0.12em] uppercase text-[var(--text-muted)]">Lendiq Score</p>
           <p className="text-[13px] text-[var(--text-secondary)] mt-0.5">Your on-chain reputation</p>
         </div>
         {isElite && (

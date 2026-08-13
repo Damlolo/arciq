@@ -30,9 +30,9 @@ function ScoreGate({ score }: { score: number }) {
       </div>
 
       <div>
-        <h2 className="text-[17px] font-black text-[var(--text-primary)] mb-2">ArcIQ Score Too Low</h2>
+        <h2 className="text-[17px] font-black text-[var(--text-primary)] mb-2">Lendiq Score Too Low</h2>
         <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed max-w-sm mx-auto">
-          You need an ArcIQ score of{" "}
+          You need a Lendiq score of{" "}
           <span className="font-bold" style={{ color: "var(--accent-secondary)" }}>{MIN_SCORE}+</span>{" "}
           to create markets. Your current score is{" "}
           <span className="font-bold text-[var(--text-primary)]">{score}</span>.
@@ -65,7 +65,7 @@ function ScoreGate({ score }: { score: number }) {
         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-1">How to unlock</p>
         {[
           "Predict on markets in the Markets tab",
-          "Win predictions to raise your ArcIQ score",
+          "Win predictions to raise your Lendiq score",
           `Reach score ≥ ${MIN_SCORE} to unlock market creation`,
           "You'll also need 1,000 USDC as a creation fee",
         ].map((tip, i) => (
@@ -156,7 +156,7 @@ export function CreateMarketPanel({ score }: { score: number; dark?: boolean }) 
         </svg>
         <div>
           <p className="text-[13px] font-semibold" style={{ color: "var(--yes-color)" }}>
-            Market creation unlocked · ArcIQ {score}
+            Market creation unlocked · Lendiq {score}
           </p>
           <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
             A 1,000 USDC fee is charged per market
@@ -326,7 +326,7 @@ export function CreateMarketPanel({ score }: { score: number; dark?: boolean }) 
             { icon: "🗳️", text: "Other users stake YES or NO on your question" },
             { icon: "⏱️", text: "You must resolve the market after it ends" },
             { icon: "🏆", text: "Winners split the pool proportional to their stake" },
-            { icon: "📈", text: "Correct predictions boost all participants' ArcIQ scores" },
+            { icon: "📈", text: "Correct predictions boost all participants' Lendiq scores" },
           ].map(({ icon, text }) => (
             <div key={text} className="flex items-start gap-3 text-[12px] text-[var(--text-secondary)]">
               <span className="text-base shrink-0 leading-tight">{icon}</span>

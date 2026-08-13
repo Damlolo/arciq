@@ -1,5 +1,5 @@
 /**
- * useProtocol — central hook for all ArcIQ contract interactions.
+ * useProtocol — central hook for all Lendiq contract interactions.
  *
  * v2 changes:
  *   - "yieldAccrued" read removed — Vault v2 has no such mapping.

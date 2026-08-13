@@ -75,7 +75,7 @@ export function ProfileCard() {
           </p>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[11px] font-semibold" style={{ color: tier.text }}>
-              ArcIQ {score} · {tier.label}
+              Lendiq {score} · {tier.label}
             </span>
             {isElite && (
               <span className="badge badge-elite text-[10px] px-2 py-0.5">⚡ Elite</span>

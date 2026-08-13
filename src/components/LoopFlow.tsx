@@ -4,7 +4,7 @@ export function LoopFlow() {
   const steps = [
     { icon: "💵", label: "Deposit USDC", sub: "Earn yield on idle collateral", color: "border-blue-500/40 bg-blue-500/5" },
     { icon: "🎯", label: "Predict markets", sub: "Stake on YES / NO outcomes", color: "border-emerald-500/40 bg-emerald-500/5" },
-    { icon: "⬆️", label: "Win → score rises", sub: "EMA pushes your ArcIQ up", color: "border-amber-500/40 bg-amber-500/5" },
+    { icon: "⬆️", label: "Win → score rises", sub: "EMA pushes your Lendiq up", color: "border-amber-500/40 bg-amber-500/5" },
     { icon: "📈", label: "Higher yield & LTV", sub: "Up to 1.6× yield, 70% LTV", color: "border-violet-500/40 bg-violet-500/5" },
     { icon: "🏦", label: "Borrow more", sub: "Score-weighted credit line", color: "border-rose-500/40 bg-rose-500/5" },
   ];

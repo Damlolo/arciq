@@ -225,7 +225,7 @@ export function PredictionsTab() {
       {/* Score progress */}
       <div className="surface-card p-5 flex flex-col gap-3">
         <div className="flex justify-between items-center">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">ArcIQ Progress</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Lendiq Progress</p>
           <span className="text-[13px] font-black" style={{ color: "var(--accent-secondary)" }}>{score} / 100</span>
         </div>
         <div className="progress-track">

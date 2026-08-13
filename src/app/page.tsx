@@ -76,7 +76,7 @@ const FEATURES = [
     ),
     accent: "#818CF8",
     glow: "rgba(99,102,241,0.12)",
-    title: "ArcIQ Score",
+    title: "Lendiq Score",
     desc: "Your on-chain reputation built from prediction accuracy and protocol participation. Higher score = better terms on everything.",
   },
   {
@@ -99,7 +99,7 @@ const FEATURES = [
     accent: "#38BDF8",
     glow: "rgba(56,189,248,0.12)",
     title: "Collateralised Lending",
-    desc: "Borrow USDC at a flat 5% APR against your vault deposits. Your ArcIQ score determines your maximum loan-to-value ratio.",
+    desc: "Borrow USDC at a flat 5% APR against your vault deposits. Your Lendiq score determines your maximum loan-to-value ratio.",
   },
   {
     icon: (
@@ -121,7 +121,7 @@ const FEATURES = [
     accent: "#FB923C",
     glow: "rgba(251,146,60,0.12)",
     title: "Live Dashboard",
-    desc: "Track your ArcIQ in real time. See claimable yield, score progress, vault balances, and active loan positions at a glance.",
+    desc: "Track your Lendiq in real time. See claimable yield, score progress, vault balances, and active loan positions at a glance.",
   },
   {
     icon: (
@@ -152,14 +152,14 @@ const STEPS = [
   },
   {
     n: "02",
-    title: "Predict on markets to build your ArcIQ score",
+    title: "Predict on markets to build your Lendiq score",
     desc: "Stake USDC on YES or NO outcomes. Every correct call pushes your score higher. Streaks multiply your gains. Wrong predictions cost a small fee — accuracy matters.",
     accent: "#10B981",
   },
   {
     n: "03",
     title: "Borrow more and earn more as your score grows",
-    desc: "A higher ArcIQ unlocks a higher LTV on loans and a higher yield multiplier on vault deposits. Reach 90+ for the Elite tier and access the exclusive bonus yield pool.",
+    desc: "A higher Lendiq unlocks a higher LTV on loans and a higher yield multiplier on vault deposits. Reach 90+ for the Elite tier and access the exclusive bonus yield pool.",
     accent: "#A78BFA",
   },
 ];
@@ -187,10 +187,10 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center">
-              <Image src="/logo.png" alt="ArcIQ Logo" width={28} height={28} className="rounded-lg object-contain" />
+              <Image src="/logo.png" alt="Lendiq Logo" width={28} height={28} className="rounded-lg object-contain" />
             </div>
             <span className="text-[17px] font-black tracking-tight">
-              Arc<span style={{ color: "var(--accent-secondary)" }}>IQ</span>
+              Lend<span style={{ color: "var(--accent-secondary)" }}>iq</span>
             </span>
           </div>
 
@@ -248,7 +248,7 @@ export default function LandingPage() {
 
               <p className="text-[var(--text-secondary)] leading-relaxed mb-10 max-w-md"
                 style={{ fontSize: "clamp(15px,1.5vw,18px)" }}>
-                Your on-chain credit score, built from prediction accuracy. Forecast markets, raise your ArcIQ, and unlock higher borrow limits and yield multipliers — all on-chain.
+                Your on-chain credit score, built from prediction accuracy. Forecast markets, raise your Lendiq, and unlock higher borrow limits and yield multipliers — all on-chain.
               </p>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -308,7 +308,7 @@ export default function LandingPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { label: "ArcIQ Score", val: "82", color: "#818CF8" },
+                    { label: "Lendiq Score", val: "82", color: "#818CF8" },
                     { label: "Yield earned", val: "$1,240", color: "#10B981" },
                   ].map(({ label, val, color }) => (
                     <div key={label} className="rounded-xl p-2.5" style={{ background: "var(--bg-elevated)" }}>
@@ -368,7 +368,7 @@ export default function LandingPage() {
             Everything you need.<br />Nothing you don't.
           </h2>
           <p className="text-[var(--text-secondary)] leading-relaxed max-w-lg text-base">
-            ArcIQ combines a prediction market, DeFi lending, and an on-chain reputation layer into one unified protocol.
+            Lendiq combines a prediction market, DeFi lending, and an on-chain reputation layer into one unified protocol.
           </p>
         </div>
 
@@ -399,7 +399,7 @@ export default function LandingPage() {
             Three steps to smarter DeFi.
           </h2>
           <p className="text-[var(--text-secondary)] leading-relaxed max-w-lg text-base">
-            ArcIQ rewards accuracy, not just capital. The more you predict correctly, the better your terms.
+            Lendiq rewards accuracy, not just capital. The more you predict correctly, the better your terms.
           </p>
         </div>
 
@@ -491,7 +491,7 @@ export default function LandingPage() {
               </span>
             </h2>
             <p className="text-[var(--text-secondary)] text-[15px] leading-relaxed mb-10 max-w-sm mx-auto">
-              Get testnet USDC, deposit into the vault, and start building your ArcIQ score today. The protocol is live on Arc Testnet.
+              Get testnet USDC, deposit into the vault, and start building your Lendiq score today. The protocol is live on Arc Testnet.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Link href="/dashboard" className="btn-primary flex items-center gap-2.5 text-[15px] px-7 py-3.5">
@@ -516,9 +516,9 @@ export default function LandingPage() {
       <footer className="border-t border-[var(--border-subtle)] px-4 md:px-12 py-8 flex flex-col md:flex-row items-center justify-between gap-3 text-[12px] text-[var(--text-muted)]">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center">
-            <Image src="/logo.png" alt="ArcIQ" width={18} height={18} className="rounded object-contain" />
+            <Image src="/logo.png" alt="Lendiq" width={18} height={18} className="rounded object-contain" />
           </div>
-          <span className="font-black text-sm text-[var(--text-primary)]">Arc<span style={{ color: "var(--accent-secondary)" }}>IQ</span></span>
+          <span className="font-black text-sm text-[var(--text-primary)]">Lend<span style={{ color: "var(--accent-secondary)" }}>iq</span></span>
         </div>
         <div className="flex items-center gap-4">
           <span>Built on Arc Network · Chain ID 5042002</span>

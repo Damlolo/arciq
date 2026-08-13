@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ArcIQ — Predict smarter. Borrow better.",
+  title: "Lendiq — Predict smarter. Borrow better.",
   description:
     "DeFi protocol combining prediction markets, behavioral credit scoring, and multi-source yield on Arc Network.",
   keywords: ["DeFi", "prediction markets", "lending", "yield", "Arc Network", "USDC"],
   openGraph: {
-    title: "ArcIQ",
+    title: "Lendiq",
     description: "Predict smarter. Borrow better.",
     type: "website",
   },

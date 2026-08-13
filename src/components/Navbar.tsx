@@ -90,11 +90,11 @@ export function Navbar() {
         {/* Logo */}
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/25 flex items-center justify-center">
-            <Image src="/logo.png" alt="ArcIQ Logo" width={26} height={26} className="rounded-lg object-contain" />
+            <Image src="/logo.png" alt="Lendiq Logo" width={26} height={26} className="rounded-lg object-contain" />
           </div>
           <div className="flex items-baseline gap-0.5">
-            <span className="text-[17px] font-black tracking-tight text-[var(--text-primary)]">Arc</span>
-            <span className="text-[17px] font-black tracking-tight" style={{ color: "var(--accent-secondary)" }}>IQ</span>
+            <span className="text-[17px] font-black tracking-tight text-[var(--text-primary)]">Lend</span>
+            <span className="text-[17px] font-black tracking-tight" style={{ color: "var(--accent-secondary)" }}>iq</span>
           </div>
         </div>
 

@@ -21,7 +21,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   // On first mount: read saved preference or system preference
   useEffect(() => {
-    const saved = localStorage.getItem("arciq-theme");
+    const saved = localStorage.getItem("lendiq-theme");
     if (saved === "light") {
       setIsDark(false);
     } else if (saved === "dark") {
@@ -44,7 +44,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     }
     // Persist
     if (mounted) {
-      localStorage.setItem("arciq-theme", isDark ? "dark" : "light");
+      localStorage.setItem("lendiq-theme", isDark ? "dark" : "light");
     }
   }, [isDark, mounted]);
 

@@ -669,7 +669,7 @@ export function MarketList() {
         </svg>
         <span className="text-[var(--text-secondary)]">
           {tab === "active"
-            ? "Predict correctly → ArcIQ rises → higher yield multiplier & borrow limit"
+            ? "Predict correctly → Lendiq rises → higher yield multiplier & borrow limit"
             : `${resolvedIds.length} markets resolved · claim your winnings below`}
         </span>
       </div>

@@ -12,7 +12,9 @@ export async function POST(req: Request) {
     if (!userToken) return NextResponse.json({ error: "userToken required" }, { status: 400 });
 
     const res = await circleClient.getUserStatus({ userToken });
-    return NextResponse.json({ pinStatus: res.data!.pinStatus ?? "UNSET" });
+    const pinStatus = res.data!.pinStatus ?? "UNSET";
+    console.log(`[api/circle/pin-status] pinStatus=${pinStatus}`);
+    return NextResponse.json({ pinStatus });
   } catch (e: any) {
     console.error("[api/circle/pin-status]", e?.response?.data ?? e);
     return NextResponse.json(

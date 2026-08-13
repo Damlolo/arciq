@@ -81,7 +81,7 @@ interface CircleWalletContextValue extends CircleWalletState {
    *  "needsPin" — this state can otherwise be a dead end (e.g. after a
    *  reload, or if the challenge iframe was closed/interrupted last time). */
   setupPin: () => Promise<void>;
-  logout: () => void;
+  logout: (opts?: { reason?: string }) => void;
   writeContract: (params: {
     address: `0x${string}`;
     abi: Abi;
@@ -101,7 +101,11 @@ export function useCircleWalletContext() {
 
 // ─── Session persistence (localStorage) ──────────────────────────────────────
 
-const STORAGE_KEY = "arciq_circle_session";
+const STORAGE_KEY = "lendiq_circle_session";
+
+// ─── Idle auto-logout timing ──────────────────────────────────────────────────
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes of no interaction
+const IDLE_CHECK_INTERVAL_MS = 30 * 1000; // how often to check for idleness
 
 function saveSession(s: StoredSession) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch {}
@@ -125,9 +129,13 @@ async function getSdk(appId: string) {
   assertAppId(appId);
   if (!sdkPromise) {
     sdkPromise = import("@circle-fin/w3s-pw-web-sdk").then(({ W3SSdk }) => {
-      const sdk = new W3SSdk();
-      sdk.setAppSettings({ appId });
-      return sdk;
+      // appSettings goes IN THE CONSTRUCTOR — every Circle doc/example does
+      // it this way (`new W3SSdk({ appSettings: { appId } })`). Constructing
+      // with no args and calling setAppSettings() afterward isn't a
+      // documented pattern, and left the challenge iframe rendering as a
+      // malformed, invisible 0x0 element (present in the DOM, but
+      // display:none / 0% width/height) instead of the actual PIN UI.
+      return new W3SSdk({ appSettings: { appId } });
     });
   }
   return sdkPromise;
@@ -140,8 +148,17 @@ async function getSdk(appId: string) {
 async function getFreshSdk(appId: string) {
   assertAppId(appId);
   const { W3SSdk } = await import("@circle-fin/w3s-pw-web-sdk");
-  const sdk = new W3SSdk();
-  sdk.setAppSettings({ appId });
+  const sdk = new W3SSdk({ appSettings: { appId } });
+  // REQUIRED per Circle's own docs: "you must call sdk.getDeviceId() after
+  // SDK initialization... without this call, sdk.execute() will silently
+  // fail." getSdk() (used once, for the initial email login) already does
+  // this — but getFreshSdk() deliberately builds a SEPARATE instance for
+  // every later challenge (to dodge the stale-iframe reuse problem), and
+  // that separate instance never got its own getDeviceId() call. This is
+  // almost certainly why challenges were resolving with no error and no
+  // visible UI — the SDK had no established session to run a real challenge
+  // against.
+  await sdk.getDeviceId();
   return sdk;
 }
 
@@ -182,6 +199,90 @@ function resetStaleChallengeIframe() {
   }
 }
 
+/** Root-cause-agnostic fix: regardless of WHY #sdkIframe ends up with
+ *  display:none / 0% width+height / z-index:-1 (a wallet-extension content
+ *  script, a CSP quirk, or Circle's own SDK never flipping it to visible),
+ *  we own the DOM once the element exists, so force it into a visible,
+ *  full-viewport, top-layer state ourselves rather than depending on
+ *  whatever was supposed to do that.
+ *
+ *  Uses setProperty(..., "important") because plain style assignment can be
+ *  losing to another script's `!important` rule or repeated overwrites —
+ *  and a MutationObserver keeps re-asserting these in case something else
+ *  (extension content script, Circle's own loading-state logic) flips them
+ *  back after we set them. Cleans up the observer once the iframe is
+ *  removed from the DOM (challenge finished/cancelled). */
+function forceIframeVisible(el: HTMLIFrameElement) {
+  const apply = () => {
+    // Escape any ancestor that clips overflow or creates its own stacking
+    // context (transform/opacity/filter/will-change) — no z-index on this
+    // element can beat a sibling stacking context from the outside, so the
+    // reliable fix is to not be nested inside one at all.
+    if (el.parentElement && el.parentElement !== document.body) {
+      document.body.appendChild(el);
+    }
+
+    el.style.setProperty("display", "block", "important");
+    el.style.setProperty("visibility", "visible", "important");
+    el.style.setProperty("opacity", "1", "important");
+    el.style.setProperty("position", "fixed", "important");
+    el.style.setProperty("top", "50%", "important");
+    el.style.setProperty("left", "50%", "important");
+    // Re-apply the SAME centering pair Circle's own CSS almost certainly
+    // intends (top/left:50% + translate(-50%,-50%)) as one consistent set,
+    // instead of a mismatched partial override — confirmed via rectX/rectY
+    // exactly matching -width/2, -height/2 that pinning top/left to 0 while
+    // a leftover translate(-50%,-50%) was still active pushed the box
+    // off-screen by half its own size.
+    el.style.setProperty("transform", "translate(-50%, -50%)", "important");
+    el.style.setProperty("max-width", "100vw", "important");
+    el.style.setProperty("max-height", "100vh", "important");
+    el.style.setProperty("z-index", "2147483647", "important");
+    el.style.setProperty("pointer-events", "auto", "important");
+    // Some SDKs size iframes via the width/height HTML attributes (not
+    // CSS), which can win over percentage/vw-vh CSS values in some browser
+    // rendering paths — clear those too so our CSS is the only sizing input.
+    el.removeAttribute("width");
+    el.removeAttribute("height");
+
+    const rect = el.getBoundingClientRect();
+    console.log("[circleWallet] forceIframeVisible applied — actual on-screen rect:", {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      parent: el.parentElement?.tagName,
+    });
+  };
+
+  apply();
+
+  const observer = new MutationObserver(() => {
+    if (!document.body.contains(el)) {
+      observer.disconnect();
+      return;
+    }
+    const style = window.getComputedStyle(el);
+    const hidden =
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      style.width === "0px" ||
+      style.height === "0px" ||
+      Number(style.zIndex || "0") < 0;
+    if (hidden) {
+      console.warn("[circleWallet] #sdkIframe was hidden again after mount — re-forcing visible.");
+      apply();
+    }
+  });
+  observer.observe(el, { attributes: true, attributeFilter: ["style", "class"] });
+
+  // Safety net: stop watching after 3 minutes regardless (challenge timeout
+  // window), so we never leave a dangling observer running forever.
+  setTimeout(() => observer.disconnect(), 180000);
+
+  return () => observer.disconnect();
+}
+
 /** Circle's execute() callback simply never fires if the challenge iframe
  *  fails to mount (wrong appId, an ad-blocker or CSP blocking Circle's
  *  domain, a popup blocker, etc.) — previously this meant the promise hung
@@ -204,16 +305,45 @@ function executeChallenge(sdk: any, challengeId: string, timeoutMs = 180000): Pr
         return;
       }
       const style = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      // offsetParent is unreliable here — it's always null for
+      // position:fixed elements regardless of actual visibility. Use the
+      // real rendered box instead.
+      const actuallyVisible =
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        Number(style.opacity || "1") > 0 &&
+        rect.width > 0 &&
+        rect.height > 0;
       console.log("[circleWallet] 800ms after execute(): #sdkIframe found —", {
         src: el.src,
         inlineDisplay: el.style.display,
         computedDisplay: style.display,
-        width: style.width,
-        height: style.height,
+        rectWidth: rect.width,
+        rectHeight: rect.height,
+        rectX: rect.x,
+        rectY: rect.y,
         zIndex: style.zIndex,
-        isVisible: el.offsetParent !== null,
+        isVisible: actuallyVisible,
       });
+      if (!actuallyVisible) {
+        console.warn("[circleWallet] #sdkIframe is invisible — forcing it visible.");
+      }
+      forceIframeVisible(el);
     }, 800);
+
+    // Don't wait 800ms to start forcing visibility — do it the instant the
+    // element exists at all, so the window where it's invisible is as short
+    // as possible. The 800ms check above just re-confirms/re-applies.
+    const earlyCheck = setInterval(() => {
+      if (typeof document === "undefined") return;
+      const el = document.getElementById("sdkIframe") as HTMLIFrameElement | null;
+      if (el) {
+        forceIframeVisible(el);
+        clearInterval(earlyCheck);
+      }
+    }, 100);
+    setTimeout(() => clearInterval(earlyCheck), 5000);
 
     let settled = false;
     const timer = setTimeout(() => {
@@ -229,13 +359,47 @@ function executeChallenge(sdk: any, challengeId: string, timeoutMs = 180000): Pr
     sdk.execute(challengeId, (error: any, result: any) => {
       console.log("[circleWallet] sdk.execute() callback fired —", { error, result });
       if (settled) return;
-      settled = true;
-      clearTimeout(timer);
+
       if (error) {
+        settled = true;
+        clearTimeout(timer);
         reject(new Error(error?.message ?? "Wallet challenge failed"));
         return;
       }
-      resolve(result);
+
+      // Circle's own documented enum (ChallengeStatus: COMPLETE, EXPIRED,
+      // FAILED, IN_PROGRESS, PENDING) makes IN_PROGRESS explicitly
+      // non-terminal — it means Circle is still waiting on the user, not
+      // that the challenge is done. The previous version of this code
+      // resolved on ANY first callback including IN_PROGRESS, based on
+      // testing that concluded "no second callback ever comes" — but that
+      // testing happened while the challenge iframe had a separate
+      // rendering bug (invisible/off-screen), so the user could never
+      // actually interact with it in the first place. That made "no second
+      // callback" a foregone conclusion regardless of whether the SDK
+      // supports one, not real evidence about the SDK's behavior. Now that
+      // the iframe actually renders, only treat genuinely terminal statuses
+      // as done, and reject clearly on failure/expiry instead of silently
+      // treating them as success.
+      const status = result?.status;
+      if (status === "COMPLETE") {
+        settled = true;
+        clearTimeout(timer);
+        resolve(result);
+        return;
+      }
+      if (status === "FAILED" || status === "EXPIRED") {
+        settled = true;
+        clearTimeout(timer);
+        reject(new Error(`Challenge ${status.toLowerCase()} — please try again.`));
+        return;
+      }
+
+      // IN_PROGRESS / PENDING: genuinely not done. Log and keep waiting —
+      // either a later callback with a terminal status arrives, or the
+      // existing timeout above fires with an actionable error instead of
+      // us silently pretending an unfinished challenge succeeded.
+      console.log(`[circleWallet] challenge status is "${status}" — not terminal, continuing to wait.`);
     });
   });
 }
@@ -545,7 +709,7 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
     }
   }, [appId]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback((opts?: { reason?: string }) => {
     sessionRef.current = null;
     clearSession();
     setState({
@@ -554,11 +718,47 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
       address: null,
       walletId: null,
       isBusy: false,
-      error: null,
-      modalOpen: false,
+      error: opts?.reason ?? null,
+      modalOpen: !!opts?.reason,
       challengeActive: false,
     });
   }, []);
+
+  // ── Idle auto-logout ──────────────────────────────────────────────────────
+  // Signs the user out after IDLE_TIMEOUT_MS of no interaction (mouse,
+  // keyboard, touch, scroll). Uses a timestamp + polling interval, rather
+  // than a single setTimeout, so background/throttled tabs still catch up
+  // and log out once they're checked again instead of silently never firing.
+  const lastActivityRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    const isSignedIn = state.step !== "signedOut" && state.step !== "restoring";
+    if (!isSignedIn) return;
+
+    lastActivityRef.current = Date.now();
+    const markActive = () => { lastActivityRef.current = Date.now(); };
+
+    const activityEvents: Array<keyof WindowEventMap> = [
+      "mousedown",
+      "mousemove",
+      "keydown",
+      "wheel",
+      "touchstart",
+      "scroll",
+    ];
+    activityEvents.forEach((evt) => window.addEventListener(evt, markActive, { passive: true }));
+
+    const intervalId = window.setInterval(() => {
+      if (Date.now() - lastActivityRef.current >= IDLE_TIMEOUT_MS) {
+        logout({ reason: "You were signed out after 15 minutes of inactivity. Please sign in again." });
+      }
+    }, IDLE_CHECK_INTERVAL_MS);
+
+    return () => {
+      activityEvents.forEach((evt) => window.removeEventListener(evt, markActive));
+      window.clearInterval(intervalId);
+    };
+  }, [state.step, logout]);
 
   const writeContract = useCallback(
     async ({ address, abi, functionName, args = [], value }: {

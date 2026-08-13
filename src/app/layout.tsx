@@ -6,13 +6,9 @@ import { Providers } from "./providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "ArcIQ — Predict smarter. Borrow better.",
+  title: "Lendiq — Predict smarter. Borrow better.",
   description:
-    "Prediction markets that unlock DeFi credit. Stake USDC, forecast outcomes, build your ArcIQ score, and borrow more.",
-
-  icons: {
-    icon: "/favicon.png",
-  },
+    "Prediction markets that unlock DeFi credit. Stake USDC, forecast outcomes, build your Lendiq score, and borrow more.",
 };
 
 export default function RootLayout({

@@ -91,13 +91,13 @@ function ConnectWalletGate() {
             <div className="flex justify-center mb-7">
               <div className="w-24 h-24 rounded-3xl flex items-center justify-center animate-glow"
                 style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.2)" }}>
-                <Image src="/logo.png" alt="ArcIQ" width={64} height={64} className="rounded-2xl object-contain" />
+                <Image src="/logo.png" alt="Lendiq" width={64} height={64} className="rounded-2xl object-contain" />
               </div>
             </div>
 
             <h1 className="text-2xl font-black text-[var(--text-primary)] mb-2 tracking-tight">Connect your wallet</h1>
             <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-8 max-w-xs mx-auto">
-              Access the ArcIQ dashboard, predict on markets, deposit into the vault, and build your on-chain credit score.
+              Access the Lendiq dashboard, predict on markets, deposit into the vault, and build your on-chain credit score.
             </p>
 
             <button
@@ -137,7 +137,7 @@ function ConnectWalletGate() {
 // ─── Score tips ───────────────────────────────────────────────────────────────
 function ScoreTips() {
   const tips = [
-    { icon: "✓", color: "#10B981", title: "Predict correctly",    desc: "Each correct market prediction adds points to your ArcIQ score." },
+    { icon: "✓", color: "#10B981", title: "Predict correctly",    desc: "Each correct market prediction adds points to your Lendiq score." },
     { icon: "🔥", color: "#F59E0B", title: "Stay consistent",     desc: "A streak of correct predictions multiplies your score gains." },
     { icon: "💸", color: "#818CF8", title: "Repay loans on time", desc: "Timely repayments signal creditworthiness and boost your score." },
     { icon: "🏦", color: "#38BDF8", title: "Deposit into vault",   desc: "Active deposits show protocol participation and raise your tier." },
@@ -167,7 +167,7 @@ function ScoreTips() {
 function StatStrip() {
   const { score, depositBalance, usdcBalance, freeBalance } = useProtocol();
   const stats = [
-    { label: "ArcIQ Score",   val: `${score}`,                  color: score >= 90 ? "#A78BFA" : score >= 70 ? "#38BDF8" : "#818CF8" },
+    { label: "Lendiq Score",   val: `${score}`,                  color: score >= 90 ? "#A78BFA" : score >= 70 ? "#38BDF8" : "#818CF8" },
     { label: "Vault Balance", val: `$${formatUsdc(depositBalance)}`, color: "var(--yes-color)" },
     { label: "Wallet USDC",   val: `$${formatUsdc(usdcBalance)}`,   color: "var(--text-primary)" },
     { label: "Free Balance",  val: `$${formatUsdc(freeBalance)}`,   color: "var(--text-primary)" },
@@ -208,7 +208,7 @@ function BorrowTab() {
         <div className="mb-5">
           <h2 className="text-xl font-black text-[var(--text-primary)] tracking-tight">Borrow USDC</h2>
           <p className="text-[13px] text-[var(--text-secondary)] mt-1 leading-relaxed">
-            Lock collateral from your vault and borrow at 5% fixed APR. Your ArcIQ score determines max LTV.
+            Lock collateral from your vault and borrow at 5% fixed APR. Your Lendiq score determines max LTV.
           </p>
         </div>
         <BorrowPanel />
@@ -253,7 +253,7 @@ function PredictTab() {
           <div>
             <h2 className="text-xl font-black text-[var(--text-primary)] tracking-tight">Prediction Markets</h2>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1 leading-relaxed">
-              Stake USDC on YES/NO outcomes. Correct predictions raise your ArcIQ score, unlocking higher yield and borrow limits.
+              Stake USDC on YES/NO outcomes. Correct predictions raise your Lendiq score, unlocking higher yield and borrow limits.
             </p>
           </div>
           <MarketList />
@@ -594,7 +594,7 @@ export default function DashboardPage() {
 
           {/* Footer */}
           <footer className="px-5 md:px-8 py-5 border-t border-[var(--border-subtle)] flex items-center justify-between text-[11px] text-[var(--text-muted)]">
-            <span>ArcIQ · Built on Arc Network · Chain ID 5042002</span>
+            <span>Lendiq · Built on Arc Network · Chain ID 5042002</span>
             <a href="https://testnet.arcscan.app" target="_blank" rel="noopener noreferrer"
               className="hover:text-[var(--text-primary)] transition-colors flex items-center gap-1.5">
               {Icons.externalLink} ArcScan
