@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
-import { useCircleWalletContext } from "@/lib/circleWallet";
+import { useCircleWalletContext, GOOGLE_PENDING_KEY } from "@/lib/circleWallet";
 
 // ─── Animated counter ────────────────────────────────────────────────────────
 function AnimatedCounter({ target, prefix = "", suffix = "", duration = 1800 }: {
@@ -178,13 +178,10 @@ const STEPS = [
 // moment it's actually ready — no manual "Launch App" click needed.
 function SigningInOverlay({ label }: { label: string }) {
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[var(--bg-base)]/90 backdrop-blur-md">
-      <div className="flex flex-col items-center gap-4 px-6 text-center">
+    <div className="fixed inset-0 z-40 flex items-center justify-center" style={{ background: "var(--bg-base)" }}>
+      <div className="flex flex-col items-center gap-4">
         <div className="w-10 h-10 border-2 border-indigo-400/30 border-t-indigo-500 rounded-full animate-spin" />
-        <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
-        <p className="text-xs text-[var(--text-muted)] max-w-xs">
-          This can take up to 30 seconds the first time — you'll be dropped straight into your dashboard.
-        </p>
+        <p className="text-sm text-[var(--text-muted)]">{label}</p>
       </div>
     </div>
   );
@@ -202,26 +199,31 @@ export default function LandingPage() {
   // ── Auto-enter the dashboard once sign-in actually finishes ────────────────
   const router = useRouter();
   const { step } = useCircleWalletContext();
+
+  // Read synchronously on first render (not in an effect) so this is already
+  // true on the very first paint after returning from Google — no flash of
+  // the landing page first. GOOGLE_PENDING_KEY is written right before
+  // performLogin() navigates to Google, and is only cleared once that login
+  // resolves (success or failure) — see circleWallet.tsx.
+  const [resumingGoogleLogin] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try { return !!localStorage.getItem(GOOGLE_PENDING_KEY); } catch { return false; }
+  });
   const wasSigningInRef = useRef(false);
 
   useEffect(() => {
     if (step !== "signedOut" && step !== "restoring" && step !== "ready") {
       wasSigningInRef.current = true;
     }
-    if (step === "ready" && wasSigningInRef.current) {
+    if (step === "ready" && (wasSigningInRef.current || resumingGoogleLogin)) {
       router.push("/dashboard");
     }
-  }, [step, router]);
+  }, [step, router, resumingGoogleLogin]);
 
-  // Deliberately NOT gated on `!challengeActive`: when Circle's own challenge
-  // iframe actually renders, it forces itself to a full-viewport top layer
-  // (see resetStaleChallengeIframe / the forced-visible styling in
-  // circleWallet.tsx) and will simply sit on top of this — but for the
-  // headless portions of wallet setup that show no Circle UI of their own,
-  // this is the only thing telling the user anything is happening at all.
   const showSigningInOverlay =
-    wasSigningInRef.current &&
-    (step === "authenticating" || step === "needsWallet" || step === "needsPin");
+    (resumingGoogleLogin || wasSigningInRef.current) &&
+    step !== "ready" &&
+    step !== "signedOut";
 
   return (
     <div className="min-h-screen text-[var(--text-primary)] overflow-x-hidden" style={{ background: "var(--bg-base)" }}>
@@ -230,7 +232,7 @@ export default function LandingPage() {
 
       {showSigningInOverlay && (
         <SigningInOverlay
-          label={step === "needsPin" ? "Finishing wallet setup…" : "Signing you in…"}
+          label={step === "needsPin" ? "Finishing wallet setup…" : "Loading Lendiq…"}
         />
       )}
 

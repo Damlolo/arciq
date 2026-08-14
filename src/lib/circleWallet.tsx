@@ -123,7 +123,7 @@ const STORAGE_KEY = "lendiq_circle_session";
 // Bridges Google's full-page OAuth redirect: written right before
 // performLogin() navigates away, read back by the redirect-resume effect
 // once the browser returns to the app.
-const GOOGLE_PENDING_KEY = "lendiq_google_pending_login";
+export const GOOGLE_PENDING_KEY = "lendiq_google_pending_login";
 
 // ─── Idle auto-logout timing ──────────────────────────────────────────────────
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes of no interaction
