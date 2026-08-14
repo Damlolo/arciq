@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useAccount, useConnect, useDisconnect } from "@/lib/circleWallet";
+import { useEffect, useRef, useState } from "react";
+import { useAccount, useConnect, useDisconnect, useCircleWalletContext } from "@/lib/circleWallet";
 import { formatUsdc } from "../lib/contracts";
 import { useProtocol } from "../hooks/useProtocol";
 
@@ -70,14 +71,99 @@ export function ConnectButton() {
         <span className="font-bold text-[var(--text-primary)]">${formatUsdc(usdcBalance)}</span>
       </div>
 
-      {/* Address button */}
+      {/* Account menu */}
+      <AccountMenu address={address} disconnect={disconnect} />
+    </div>
+  );
+}
+
+// ─── Account menu ─────────────────────────────────────────────────────────────
+// Icon cluster in the navbar: click to open a small panel showing the signed-in
+// email (Circle logins only — not shown for an externally-connected wallet),
+// the wallet address (tap to copy), and a power icon to disconnect.
+function AccountMenu({
+  address,
+  disconnect,
+}: {
+  address: `0x${string}` | undefined;
+  disconnect: () => void;
+}) {
+  const { email } = useCircleWalletContext();
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  async function handleCopy() {
+    if (!address) return;
+    await navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <div className="relative" ref={menuRef}>
       <button
-        onClick={() => disconnect()}
+        onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 rounded-xl px-3 py-1.5 border border-[var(--border-default)] bg-white/4 hover:bg-white/7 hover:border-[var(--border-strong)] transition-all text-[12px] font-mono text-[var(--text-secondary)]"
       >
         <span className="w-2 h-2 rounded-full bg-[var(--yes-color)]" style={{ animation: "pulse-dot 2s ease-in-out infinite" }} />
         {address?.slice(0, 6)}…{address?.slice(-4)}
+        <svg className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
       </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-2 w-64 rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-default)] z-50"
+          style={{ background: "var(--bg-elevated)" }}
+        >
+          {email && (
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border-subtle)]">
+              <svg className="w-4 h-4 shrink-0 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+              </svg>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Email</p>
+                <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{email}</p>
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={handleCopy}
+            className="w-full flex items-center gap-3 px-4 py-3 border-b border-[var(--border-subtle)] hover:bg-white/5 transition-colors text-left"
+          >
+            <svg className="w-4 h-4 shrink-0 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18-3a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3m18-3V6" />
+            </svg>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Wallet</p>
+              <p className="text-[13px] font-mono font-medium text-[var(--text-primary)] truncate">{address}</p>
+            </div>
+            <span className="text-[10px] font-semibold text-[var(--text-muted)] shrink-0">{copied ? "Copied!" : "Copy"}</span>
+          </button>
+
+          <button
+            onClick={() => { setOpen(false); disconnect(); }}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-500/10 transition-colors text-left group"
+          >
+            <svg className="w-4 h-4 shrink-0 text-red-400 group-hover:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5.636 5.636a9 9 0 1012.728 0M12 3v9" />
+            </svg>
+            <span className="text-[13px] font-medium text-red-400">Disconnect</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

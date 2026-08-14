@@ -31,6 +31,12 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  useAccount as useWagmiAccount,
+  useConnect as useWagmiConnect,
+  useDisconnect as useWagmiDisconnect,
+  useWriteContract as useWagmiWriteContract,
+} from "wagmi";
 import { encodeFunctionData, type Abi } from "viem";
 import { ARC_TESTNET } from "./contracts";
 
@@ -76,6 +82,17 @@ interface CircleWalletContextValue extends CircleWalletState {
   closeModal: () => void;
   /** Starts Circle's native email-OTP login — opens their hosted OTP iframe. */
   loginWithEmail: (email: string) => Promise<void>;
+  /** Starts Circle's native Google social login. This navigates the whole
+   *  page away to Google's OAuth screen and back — unlike email OTP, which
+   *  stays on-page in an iframe. */
+  loginWithGoogle: () => Promise<void>;
+  /** Connects an external wallet (MetaMask, Rabby, OKX, Zerion, WalletConnect,
+   *  ...) via wagmi — a path that bypasses Circle entirely. Once connected,
+   *  address/isConnected/writeContract everywhere else in the app
+   *  transparently reflect this wallet instead of a Circle one. */
+  connectExternalWallet: (connector: any) => Promise<void>;
+  /** True when an external (non-Circle) wallet is the active connection. */
+  isExternalWallet: boolean;
   /** Re-runs the PIN-setup challenge for a wallet that exists but has no
    *  working PIN yet. Exposed so the UI can offer a retry when step is
    *  "needsPin" — this state can otherwise be a dead end (e.g. after a
@@ -103,6 +120,11 @@ export function useCircleWalletContext() {
 
 const STORAGE_KEY = "lendiq_circle_session";
 
+// Bridges Google's full-page OAuth redirect: written right before
+// performLogin() navigates away, read back by the redirect-resume effect
+// once the browser returns to the app.
+const GOOGLE_PENDING_KEY = "lendiq_google_pending_login";
+
 // ─── Idle auto-logout timing ──────────────────────────────────────────────────
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes of no interaction
 const IDLE_CHECK_INTERVAL_MS = 30 * 1000; // how often to check for idleness
@@ -122,7 +144,52 @@ function clearSession() {
   try { localStorage.removeItem(STORAGE_KEY); } catch {}
 }
 
+// Persisted (not just in-memory) last-activity timestamp. This is what makes
+// the idle timeout actually work across page loads — an in-memory-only ref
+// resets to "just active" on every fresh mount, including simply reopening
+// the browser after being away for hours, which defeats the whole point.
+// Checked against wall-clock time during session restore, before a stored
+// session is ever trusted.
+const LAST_ACTIVITY_KEY = "lendiq_last_activity";
+function markActivityPersisted() {
+  try { localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now())); } catch {}
+}
+function getPersistedLastActivity(): number | null {
+  try {
+    const raw = localStorage.getItem(LAST_ACTIVITY_KEY);
+    return raw ? Number(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function clearPersistedActivity() {
+  try { localStorage.removeItem(LAST_ACTIVITY_KEY); } catch {}
+}
+
+/** SocialLoginProvider is exported from a subpath, not the package root —
+ *  imported dynamically (like the SDK itself) rather than guessing the
+ *  underlying string value, since it's an internal enum whose exact runtime
+ *  value isn't documented. */
+async function getSocialLoginProvider(name: "google") {
+  const mod: any = await import("@circle-fin/w3s-pw-web-sdk/dist/src/types");
+  return mod.SocialLoginProvider[name.toUpperCase() as "GOOGLE"];
+}
+
 // ─── Lazy-loaded Circle Web SDK (browser only) ───────────────────────────────
+
+// W3SSdk is a hard singleton (see getFreshSdk's comment below) — only the
+// FIRST-EVER `new W3SSdk(...)` call in a given page's lifetime actually takes
+// effect; everything after it just returns that same instance, ignoring new
+// constructor args. That means a login-complete callback can only reliably be
+// wired in AT that first construction. Google's redirect flow needs one (see
+// loginWithGoogle / the redirect-resume effect below) — email OTP does NOT
+// rely on this slot at all (it uses its own per-call callback via
+// updateConfigs() instead, which is a separate mechanism and unaffected by
+// this). Routing every getSdk() caller through this same stable wrapper,
+// regardless of which flow calls it first, means whichever construction wins
+// still ends up with a working callback slot for Google's benefit, without
+// changing anything about how email login behaves.
+let socialLoginHandler: ((error: any, result: any) => void) | null = null;
 
 let sdkPromise: Promise<any> | null = null;
 async function getSdk(appId: string) {
@@ -135,8 +202,11 @@ async function getSdk(appId: string) {
       // documented pattern, and left the challenge iframe rendering as a
       // malformed, invisible 0x0 element (present in the DOM, but
       // display:none / 0% width/height) instead of the actual PIN UI.
-      return new W3SSdk({ appSettings: { appId } });
+      return new W3SSdk({ appSettings: { appId } }, (error: any, result: any) => {
+        socialLoginHandler?.(error, result);
+      });
     });
+
   }
   return sdkPromise;
 }
@@ -427,7 +497,32 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
     deviceId: string;
   } | null>(null);
 
+  // ── External wallet (bypasses Circle entirely) ────────────────────────────
+  // "Connect wallet" — MetaMask/Rabby/OKX/Zerion/WalletConnect — is a wagmi
+  // connection, not a Circle one. Whenever one is connected, it takes
+  // priority over any Circle session everywhere below: address/isConnected,
+  // logout, the idle timer, and writeContract all check this first.
+  const wagmiAccount = useWagmiAccount();
+  const { connectAsync: wagmiConnectAsync } = useWagmiConnect();
+  const { disconnectAsync: wagmiDisconnectAsync } = useWagmiDisconnect();
+  const { writeContractAsync: wagmiWriteContractAsync } = useWagmiWriteContract();
+  const isExternalWallet = wagmiAccount.isConnected && !!wagmiAccount.address;
+
+  const connectExternalWallet = useCallback(
+    async (connector: any) => {
+      patch({ error: null });
+      try {
+        await wagmiConnectAsync({ connector });
+        patch({ modalOpen: false });
+      } catch (e: any) {
+        patch({ error: e?.message ?? "Could not connect that wallet" });
+      }
+    },
+    [wagmiConnectAsync]
+  );
+
   const appId = process.env.NEXT_PUBLIC_CIRCLE_APP_ID ?? "";
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
   const patch = (p: Partial<CircleWalletState>) => setState((s) => ({ ...s, ...p }));
 
@@ -437,6 +532,20 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
       const stored = loadSession();
       if (!stored) {
         patch({ step: "signedOut" });
+        return;
+      }
+
+      // Check REAL elapsed wall-clock time since the user was last active —
+      // not just "is there a session in localStorage". A session sitting
+      // untouched since yesterday should not silently restore just because
+      // the tab was reopened; that's the exact case the idle timeout is
+      // supposed to catch, and an in-memory-only timer can't catch it since
+      // memory is wiped every time the page reloads.
+      const lastActivity = getPersistedLastActivity();
+      if (lastActivity !== null && Date.now() - lastActivity >= IDLE_TIMEOUT_MS) {
+        clearSession();
+        clearPersistedActivity();
+        patch({ step: "signedOut", error: "You were signed out after 15 minutes of inactivity. Please sign in again." });
         return;
       }
 
@@ -693,6 +802,195 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
     }
   }, [appId]);
 
+  // ── Shared tail logic for "we just got a userToken/encryptionKey back from
+  //    Circle" — used by both loginWithEmail (above) and the Google
+  //    redirect-resume flow (below). Checks for an existing wallet, sets one
+  //    up if needed, verifies a PIN is actually set, and lands on "ready".
+  const finishSocialLogin = useCallback(
+    async (
+      loginResult: { userToken: string; encryptionKey: string; refreshToken: string },
+      deviceId: string,
+      email: string | null
+    ) => {
+      sessionRef.current = { ...loginResult, deviceId };
+
+      const walletRes = await fetch("/api/circle/wallet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userToken: loginResult.userToken }),
+      });
+      const walletBody = await walletRes.json();
+
+      if (walletRes.ok && walletBody.address) {
+        saveSession({ ...loginResult, deviceId, address: walletBody.address, walletId: walletBody.walletId, email });
+
+        const pinStatus = await checkPinStatus(loginResult.userToken);
+        if (pinStatus !== "ENABLED") {
+          patch({ step: "needsPin", address: walletBody.address, walletId: walletBody.walletId });
+          await ensurePinSet(loginResult.userToken, loginResult.encryptionKey, appId, (active) =>
+            patch({ challengeActive: active })
+          );
+        }
+
+        patch({ step: "ready", address: walletBody.address, walletId: walletBody.walletId, isBusy: false, modalOpen: false, email });
+        return;
+      }
+
+      // No wallet yet — kick off the PIN-setup + wallet-creation challenge.
+      patch({ step: "needsWallet" });
+
+      const initRes = await fetch("/api/circle/initialize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userToken: loginResult.userToken }),
+      });
+      const initBody = await initRes.json();
+      if (!initRes.ok) throw new Error(initBody.error ?? "Could not start wallet setup");
+
+      const freshSdk = await getFreshSdk(appId);
+      freshSdk.setAuthentication(loginResult);
+      patch({ challengeActive: true });
+      let challengeResult: any;
+      try {
+        challengeResult = await executeChallenge(freshSdk, initBody.challengeId);
+      } finally {
+        patch({ challengeActive: false });
+      }
+      console.log("[circleWallet] google wallet-init challenge result:", challengeResult);
+
+      const finalWalletBody = await pollForWallet(loginResult.userToken);
+
+      const pinStatus = await checkPinStatus(loginResult.userToken);
+      if (pinStatus !== "ENABLED") {
+        patch({ step: "needsPin", address: finalWalletBody.address, walletId: finalWalletBody.walletId });
+        await ensurePinSet(loginResult.userToken, loginResult.encryptionKey, appId, (active) =>
+          patch({ challengeActive: active })
+        );
+      }
+
+      saveSession({ ...loginResult, deviceId, address: finalWalletBody.address, walletId: finalWalletBody.walletId, email });
+      patch({ step: "ready", address: finalWalletBody.address, walletId: finalWalletBody.walletId, isBusy: false, modalOpen: false, email });
+    },
+    [appId]
+  );
+
+  // ── Google social login ───────────────────────────────────────────────────
+  // Unlike email OTP (which stays on-page in an iframe), performLogin()
+  // navigates the ENTIRE page away to Google's OAuth screen and back — so
+  // nothing in this function's closure survives to see the result. Instead:
+  //  1. Before redirecting, persist the deviceToken/deviceEncryptionKey this
+  //     login attempt needs to localStorage (GOOGLE_PENDING_KEY).
+  //  2. A separate effect (below, runs on every mount) checks for that
+  //     pending marker and, if present, re-registers the SDK config +
+  //     socialLoginHandler so the login-complete callback wired into getSdk()
+  //     actually has something to call once Circle/Google resolve it.
+  const loginWithGoogle = useCallback(async () => {
+    if (!googleClientId) {
+      patch({ error: "Google sign-in isn't configured yet — NEXT_PUBLIC_GOOGLE_CLIENT_ID is missing." });
+      return;
+    }
+    patch({ isBusy: true, error: null });
+    try {
+      const sdk = await getSdk(appId);
+      const deviceId: string = await sdk.getDeviceId();
+
+      const res = await fetch("/api/circle/social-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceId }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Could not start Google sign-in");
+
+      localStorage.setItem(
+        GOOGLE_PENDING_KEY,
+        JSON.stringify({ deviceToken: body.deviceToken, deviceEncryptionKey: body.deviceEncryptionKey })
+      );
+
+      sdk.updateConfigs({
+        appSettings: { appId },
+        loginConfigs: {
+          deviceToken: body.deviceToken,
+          deviceEncryptionKey: body.deviceEncryptionKey,
+          google: {
+            clientId: googleClientId,
+            redirectUri: window.location.origin,
+            selectAccountPrompt: true,
+          },
+        },
+      });
+
+      patch({ step: "authenticating" });
+      sdk.performLogin(await getSocialLoginProvider("google"));
+      // Page navigates away here — nothing after this line runs.
+    } catch (e: any) {
+      localStorage.removeItem(GOOGLE_PENDING_KEY);
+      patch({ isBusy: false, error: e.message ?? "Google sign-in failed", step: "signedOut" });
+    }
+  }, [appId, googleClientId]);
+
+  // Resume a Google login after the OAuth redirect brings the browser back.
+  // This is a genuinely fresh page load (full navigation, not a client-side
+  // route change) — sdkPromise is null again, so this IS the first-ever
+  // getSdk() construction for this page load whenever it applies, meaning
+  // the login-complete callback wired into getSdk() is guaranteed to be the
+  // one that fires here (see the singleton note above getSdk()).
+  useEffect(() => {
+    const pendingRaw = localStorage.getItem(GOOGLE_PENDING_KEY);
+    if (!pendingRaw || !googleClientId) return;
+
+    let pending: { deviceToken: string; deviceEncryptionKey: string };
+    try {
+      pending = JSON.parse(pendingRaw);
+    } catch {
+      localStorage.removeItem(GOOGLE_PENDING_KEY);
+      return;
+    }
+
+    socialLoginHandler = async (error: any, result: any) => {
+      localStorage.removeItem(GOOGLE_PENDING_KEY);
+      socialLoginHandler = null;
+      if (error) {
+        patch({ isBusy: false, error: error.message ?? "Google sign-in failed", step: "signedOut" });
+        return;
+      }
+      try {
+        const sdk = await getSdk(appId);
+        const deviceId: string = await sdk.getDeviceId();
+        const email: string | null = result?.oAuthInfo?.socialUserInfo?.email ?? null;
+        await finishSocialLogin(
+          { userToken: result.userToken, encryptionKey: result.encryptionKey, refreshToken: result.refreshToken },
+          deviceId,
+          email
+        );
+      } catch (e: any) {
+        patch({ isBusy: false, error: e.message ?? "Could not finish Google sign-in", step: "signedOut" });
+      }
+    };
+
+    (async () => {
+      patch({ step: "authenticating", modalOpen: true });
+      const sdk = await getSdk(appId);
+      sdk.updateConfigs({
+        appSettings: { appId },
+        loginConfigs: {
+          deviceToken: pending.deviceToken,
+          deviceEncryptionKey: pending.deviceEncryptionKey,
+          google: {
+            clientId: googleClientId,
+            redirectUri: window.location.origin,
+            selectAccountPrompt: true,
+          },
+        },
+      });
+      // No further call needed here — the SDK detects the completed OAuth
+      // redirect itself (via the URL) and fires the constructor's
+      // login-complete callback, which socialLoginHandler above is now
+      // registered to receive.
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appId, googleClientId]);
+
   const setupPin = useCallback(async () => {
     if (!sessionRef.current) {
       patch({ error: "Session expired — please sign in again." });
@@ -710,8 +1008,12 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
   }, [appId]);
 
   const logout = useCallback((opts?: { reason?: string }) => {
+    if (isExternalWallet) {
+      wagmiDisconnectAsync().catch(() => {});
+    }
     sessionRef.current = null;
     clearSession();
+    clearPersistedActivity();
     setState({
       step: "signedOut",
       email: null,
@@ -722,20 +1024,30 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
       modalOpen: !!opts?.reason,
       challengeActive: false,
     });
-  }, []);
+  }, [isExternalWallet, wagmiDisconnectAsync]);
 
   // ── Idle auto-logout ──────────────────────────────────────────────────────
   // Signs the user out after IDLE_TIMEOUT_MS of no interaction (mouse,
   // keyboard, touch, scroll). Uses a timestamp + polling interval, rather
   // than a single setTimeout, so background/throttled tabs still catch up
   // and log out once they're checked again instead of silently never firing.
+  //
+  // The timestamp is ALSO persisted to localStorage (not just kept in this
+  // ref), because an in-memory-only timer resets to "just active" on every
+  // fresh page load — including simply reopening the browser after being
+  // away for hours. The restore-on-mount effect above checks this persisted
+  // value before ever trusting a stored session.
   const lastActivityRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    const isSignedIn = state.step !== "signedOut" && state.step !== "restoring";
-    if (!isSignedIn) return;
+    const isSignedIn = (state.step !== "signedOut" && state.step !== "restoring") || isExternalWallet;
+    if (!isSignedIn) {
+      clearPersistedActivity();
+      return;
+    }
 
     lastActivityRef.current = Date.now();
+    markActivityPersisted();
     const markActive = () => { lastActivityRef.current = Date.now(); };
 
     const activityEvents: Array<keyof WindowEventMap> = [
@@ -751,14 +1063,29 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
     const intervalId = window.setInterval(() => {
       if (Date.now() - lastActivityRef.current >= IDLE_TIMEOUT_MS) {
         logout({ reason: "You were signed out after 15 minutes of inactivity. Please sign in again." });
+      } else {
+        // Still active as of this tick — refresh the persisted timestamp so
+        // a later reopened tab can judge elapsed time accurately.
+        markActivityPersisted();
       }
     }, IDLE_CHECK_INTERVAL_MS);
+
+    // Persist right at the moment the tab is hidden/closed too, rather than
+    // waiting for the next 30s tick — makes the "reopen after being away"
+    // check as accurate as possible.
+    const persistOnHide = () => {
+      if (document.visibilityState === "hidden") markActivityPersisted();
+    };
+    document.addEventListener("visibilitychange", persistOnHide);
+    window.addEventListener("pagehide", markActivityPersisted);
 
     return () => {
       activityEvents.forEach((evt) => window.removeEventListener(evt, markActive));
       window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", persistOnHide);
+      window.removeEventListener("pagehide", markActivityPersisted);
     };
-  }, [state.step, logout]);
+  }, [state.step, isExternalWallet, logout]);
 
   const writeContract = useCallback(
     async ({ address, abi, functionName, args = [], value }: {
@@ -768,6 +1095,30 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
       args?: readonly unknown[];
       value?: bigint;
     }) => {
+      // External wallet (MetaMask/Rabby/OKX/Zerion/WalletConnect) — the
+      // wallet extension itself handles the confirmation UI and signing.
+      // None of Circle's challenge/polling machinery applies here.
+      if (isExternalWallet) {
+        patch({ isBusy: true, error: null });
+        try {
+          const hash = await wagmiWriteContractAsync({
+            address,
+            abi,
+            functionName,
+            args,
+            value,
+            account: wagmiAccount.address as `0x${string}`,
+            chain: ARC_TESTNET as any,
+            chainId: ARC_TESTNET.id,
+          });
+          patch({ isBusy: false });
+          return hash;
+        } catch (e: any) {
+          patch({ isBusy: false, error: e?.shortMessage ?? e?.message ?? "Transaction failed" });
+          throw e;
+        }
+      }
+
       if (!sessionRef.current || !state.walletId) {
         throw new Error("Wallet not ready — connect first");
       }
@@ -817,12 +1168,28 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
         throw e;
       }
     },
-    [appId, state.walletId]
+    [appId, state.walletId, isExternalWallet, wagmiAccount.address, wagmiWriteContractAsync]
   );
 
   const value = useMemo<CircleWalletContextValue>(
-    () => ({ ...state, openModal, closeModal, loginWithEmail, setupPin, logout, writeContract }),
-    [state, openModal, closeModal, loginWithEmail, setupPin, logout, writeContract]
+    () => ({
+      ...state,
+      // External wallet connection overrides Circle's own address/isConnected
+      // (via isExternalWallet below in the exported shim hooks) — the raw
+      // state.address here stays Circle-only, which is correct: it's what
+      // "ready" etc. actually mean for the Circle-specific parts of the UI
+      // (PIN setup, email step, etc.) regardless of which wallet is active.
+      openModal,
+      closeModal,
+      loginWithEmail,
+      loginWithGoogle,
+      connectExternalWallet,
+      isExternalWallet,
+      setupPin,
+      logout,
+      writeContract,
+    }),
+    [state, openModal, closeModal, loginWithEmail, loginWithGoogle, connectExternalWallet, isExternalWallet, setupPin, logout, writeContract]
   );
 
   return <CircleWalletContext.Provider value={value}>{children}</CircleWalletContext.Provider>;
@@ -974,7 +1341,11 @@ async function pollTransactionHash(userToken: string, challengeId: string): Prom
 // ─── wagmi-compatible shim hooks ──────────────────────────────────────────────
 
 export function useAccount() {
-  const { address, step } = useCircleWalletContext();
+  const { address, step, isExternalWallet } = useCircleWalletContext();
+  const wagmiAccount = useWagmiAccount();
+  if (isExternalWallet && wagmiAccount.address) {
+    return { address: wagmiAccount.address, isConnected: true };
+  }
   return { address: address ?? undefined, isConnected: step === "ready" };
 }
 

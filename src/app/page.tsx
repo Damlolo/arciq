@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
+import { useCircleWalletContext } from "@/lib/circleWallet";
 
 // ─── Animated counter ────────────────────────────────────────────────────────
 function AnimatedCounter({ target, prefix = "", suffix = "", duration = 1800 }: {
@@ -164,6 +166,30 @@ const STEPS = [
   },
 ];
 
+// ─── Full-page "finishing sign-in" overlay ────────────────────────────────────
+// Bridges the gap after the Google OAuth redirect brings the browser back to
+// "/" (Circle's redirectUri is always the site origin, so this is where the
+// user lands no matter where they started signing in). Circle's own iframe
+// only shows up for SOME of the steps in between (PIN entry, etc) — the rest
+// (detecting the completed redirect, provisioning the wallet, polling) has no
+// visible UI of its own, which is why it used to look like a plain, static
+// landing page for up to ~30s. This keeps something visibly moving the whole
+// time instead, and the effect below takes the user into the dashboard the
+// moment it's actually ready — no manual "Launch App" click needed.
+function SigningInOverlay({ label }: { label: string }) {
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[var(--bg-base)]/90 backdrop-blur-md">
+      <div className="flex flex-col items-center gap-4 px-6 text-center">
+        <div className="w-10 h-10 border-2 border-indigo-400/30 border-t-indigo-500 rounded-full animate-spin" />
+        <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
+        <p className="text-xs text-[var(--text-muted)] max-w-xs">
+          This can take up to 30 seconds the first time — you'll be dropped straight into your dashboard.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
@@ -173,10 +199,40 @@ export default function LandingPage() {
     return () => window.removeEventListener("scroll", fn);
   }, []);
 
+  // ── Auto-enter the dashboard once sign-in actually finishes ────────────────
+  const router = useRouter();
+  const { step } = useCircleWalletContext();
+  const wasSigningInRef = useRef(false);
+
+  useEffect(() => {
+    if (step !== "signedOut" && step !== "restoring" && step !== "ready") {
+      wasSigningInRef.current = true;
+    }
+    if (step === "ready" && wasSigningInRef.current) {
+      router.push("/dashboard");
+    }
+  }, [step, router]);
+
+  // Deliberately NOT gated on `!challengeActive`: when Circle's own challenge
+  // iframe actually renders, it forces itself to a full-viewport top layer
+  // (see resetStaleChallengeIframe / the forced-visible styling in
+  // circleWallet.tsx) and will simply sit on top of this — but for the
+  // headless portions of wallet setup that show no Circle UI of their own,
+  // this is the only thing telling the user anything is happening at all.
+  const showSigningInOverlay =
+    wasSigningInRef.current &&
+    (step === "authenticating" || step === "needsWallet" || step === "needsPin");
+
   return (
     <div className="min-h-screen text-[var(--text-primary)] overflow-x-hidden" style={{ background: "var(--bg-base)" }}>
       {/* Grid texture */}
       <div className="fixed inset-0 grid-texture pointer-events-none opacity-40" />
+
+      {showSigningInOverlay && (
+        <SigningInOverlay
+          label={step === "needsPin" ? "Finishing wallet setup…" : "Signing you in…"}
+        />
+      )}
 
       {/* ── Navbar ── */}
       <nav className={`sticky top-0 z-50 transition-all duration-300 ${
