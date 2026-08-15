@@ -261,6 +261,31 @@ function assertAppId(appId: string) {
  *  so appendIframe() is always re-attaching a genuinely detached node —
  *  which reliably forces a real reload — instead of possibly reusing an
  *  already-attached, stale one. */
+/** Plain fetch() has no built-in timeout — a stalled request (network blip,
+ *  slow serverless cold start, etc) can leave it pending indefinitely. Every
+ *  call in the sign-in / wallet-setup path is awaited in sequence, so ONE
+ *  hung fetch previously meant the entire flow stalled forever with nothing
+ *  but a spinner on screen and no way out short of a manual refresh — even
+ *  though executeChallenge() below already has robust timeout handling of
+ *  its own. This wraps fetch with an AbortController so any request to our
+ *  own API routes surfaces a clear, catchable error within a bounded time
+ *  instead, which the callers' existing try/catch blocks turn into a proper
+ *  "signedOut" + error state rather than an infinite hang. */
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 20000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (e: any) {
+    if (e?.name === "AbortError") {
+      throw new Error("Request timed out — check your connection and try again.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function resetStaleChallengeIframe() {
   if (typeof document === "undefined") return;
   const stale = document.getElementById("sdkIframe");
@@ -562,7 +587,7 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
       if (!walletBody.ok) {
         // Token's likely stale — exchange the refresh token for a new one.
         try {
-          const refreshRes = await fetch("/api/circle/refresh-token", {
+          const refreshRes = await fetchWithTimeout("/api/circle/refresh-token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -654,7 +679,7 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
       const sdk = await getSdk(appId);
       const deviceId: string = await sdk.getDeviceId();
 
-      const res = await fetch("/api/circle/email-login", {
+      const res = await fetchWithTimeout("/api/circle/email-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deviceId, email }),
@@ -698,7 +723,7 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
       sessionRef.current = { ...loginResult, deviceId };
 
       // Does this user already have a wallet?
-      const walletRes = await fetch("/api/circle/wallet", {
+      const walletRes = await fetchWithTimeout("/api/circle/wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userToken: loginResult.userToken }),
@@ -737,7 +762,7 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
       // No wallet yet — kick off the PIN-setup + wallet-creation challenge.
       patch({ step: "needsWallet" });
 
-      const initRes = await fetch("/api/circle/initialize", {
+      const initRes = await fetchWithTimeout("/api/circle/initialize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userToken: loginResult.userToken }),
@@ -814,7 +839,7 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
     ) => {
       sessionRef.current = { ...loginResult, deviceId };
 
-      const walletRes = await fetch("/api/circle/wallet", {
+      const walletRes = await fetchWithTimeout("/api/circle/wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userToken: loginResult.userToken }),
@@ -839,7 +864,7 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
       // No wallet yet — kick off the PIN-setup + wallet-creation challenge.
       patch({ step: "needsWallet" });
 
-      const initRes = await fetch("/api/circle/initialize", {
+      const initRes = await fetchWithTimeout("/api/circle/initialize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userToken: loginResult.userToken }),
@@ -894,7 +919,7 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
       const sdk = await getSdk(appId);
       const deviceId: string = await sdk.getDeviceId();
 
-      const res = await fetch("/api/circle/social-login", {
+      const res = await fetchWithTimeout("/api/circle/social-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deviceId }),
@@ -1127,7 +1152,7 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
         const callData = encodeFunctionData({ abi, functionName, args });
         const { userToken } = sessionRef.current;
 
-        const res = await fetch("/api/circle/execute", {
+        const res = await fetchWithTimeout("/api/circle/execute", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1196,7 +1221,7 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
 }
 
 async function checkPinStatus(userToken: string): Promise<string> {
-  const res = await fetch("/api/circle/pin-status", {
+  const res = await fetchWithTimeout("/api/circle/pin-status", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ userToken }),
@@ -1223,7 +1248,7 @@ async function ensurePinSet(
   const pinStatus = await checkPinStatus(userToken);
   if (pinStatus === "ENABLED") return;
 
-  const res = await fetch("/api/circle/create-pin", {
+  const res = await fetchWithTimeout("/api/circle/create-pin", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ userToken }),
@@ -1243,7 +1268,7 @@ async function ensurePinSet(
 
 async function checkWallet(userToken: string): Promise<{ ok: boolean; address?: `0x${string}`; walletId?: string }> {
   try {
-    const res = await fetch("/api/circle/wallet", {
+    const res = await fetchWithTimeout("/api/circle/wallet", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userToken }),
@@ -1259,7 +1284,7 @@ async function checkWallet(userToken: string): Promise<{ ok: boolean; address?: 
 async function pollForWallet(userToken: string): Promise<{ address: `0x${string}`; walletId: string }> {
   let lastError = "Wallet setup did not complete";
   for (let i = 0; i < 20; i++) {
-    const res = await fetch("/api/circle/wallet", {
+    const res = await fetchWithTimeout("/api/circle/wallet", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userToken }),
@@ -1298,7 +1323,7 @@ async function pollTransactionHash(userToken: string, challengeId: string): Prom
 
   while (Date.now() - start < maxDurationMs) {
     try {
-      const res = await fetch("/api/circle/transaction", {
+      const res = await fetchWithTimeout("/api/circle/transaction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userToken, challengeId }),
