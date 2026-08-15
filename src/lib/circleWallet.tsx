@@ -796,16 +796,14 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
       // behind the challenge completing — poll instead of checking once.
       const finalWalletBody = await pollForWallet(loginResult.userToken);
 
-      // Defensive check: the challenge above is *supposed* to set a real PIN
-      // alongside the wallet, but given we've seen that silently not happen,
-      // verify it actually landed rather than assuming.
-      const pinStatus = await checkPinStatus(loginResult.userToken);
-      if (pinStatus !== "ENABLED") {
-        patch({ step: "needsPin", address: finalWalletBody.address, walletId: finalWalletBody.walletId });
-        await ensurePinSet(loginResult.userToken, loginResult.encryptionKey, appId, (active) =>
-          patch({ challengeActive: active })
-        );
-      }
+      // NOTE: intentionally NOT re-checking/re-challenging PIN status here.
+      // createUserPinWithWallets() above already bundles PIN setup into the
+      // SAME challenge as wallet creation — Circle's SDK requires a PIN to
+      // create a non-custodial wallet at all, so if pollForWallet just
+      // succeeded, the PIN was necessarily set as part of that. A second,
+      // separate PIN challenge after this point was pure defensive
+      // paranoia and gave every sign-in two chances to hit a stuck
+      // challenge instead of one.
 
       saveSession({
         ...loginResult,
@@ -885,13 +883,9 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
 
       const finalWalletBody = await pollForWallet(loginResult.userToken);
 
-      const pinStatus = await checkPinStatus(loginResult.userToken);
-      if (pinStatus !== "ENABLED") {
-        patch({ step: "needsPin", address: finalWalletBody.address, walletId: finalWalletBody.walletId });
-        await ensurePinSet(loginResult.userToken, loginResult.encryptionKey, appId, (active) =>
-          patch({ challengeActive: active })
-        );
-      }
+      // See loginWithEmail's matching comment above — no second PIN
+      // challenge here; createUserPinWithWallets already required one to
+      // get this far.
 
       saveSession({ ...loginResult, deviceId, address: finalWalletBody.address, walletId: finalWalletBody.walletId, email });
       patch({ step: "ready", address: finalWalletBody.address, walletId: finalWalletBody.walletId, isBusy: false, modalOpen: false, email });
