@@ -782,19 +782,38 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
       // null) so Circle's own iframe is actually visible instead of sitting
       // behind our modal's opaque backdrop.
       patch({ challengeActive: true });
-      let challengeResult: any;
+      let challengeError: any = null;
       try {
-        challengeResult = await executeChallenge(freshSdk, initBody.challengeId);
+        await executeChallenge(freshSdk, initBody.challengeId, 45000); // shorter timeout OK — pollForWallet below is the real fallback
+      } catch (e) {
+        // Don't give up yet — the challenge can genuinely succeed on
+        // Circle's backend while the LOCAL promise never resolves (e.g. a
+        // third-party-cookie/storage-partitioning issue breaks the iframe's
+        // postMessage callback back to us). Stash the error and fall
+        // through to actually checking the wallet below instead of
+        // trusting only "did our promise resolve".
+        challengeError = e;
       } finally {
         patch({ challengeActive: false });
       }
-      // Diagnostic: if the PIN screen never visibly appeared, this tells us
-      // whether Circle considered the challenge complete anyway.
-      console.log("[circleWallet] wallet-init challenge result:", challengeResult);
+      console.log("[circleWallet] wallet-init challenge settled —", {
+        succeeded: !challengeError,
+        error: challengeError?.message,
+      });
 
       // Wallet provisioning (esp. for SCA account types) can lag a moment
       // behind the challenge completing — poll instead of checking once.
-      const finalWalletBody = await pollForWallet(loginResult.userToken);
+      // This ALSO doubles as the real verdict on a timed-out challenge above:
+      // if the wallet shows up here despite executeChallenge having failed
+      // client-side, it means the challenge actually went through.
+      let finalWalletBody: { address: `0x${string}`; walletId: string };
+      try {
+        finalWalletBody = await pollForWallet(loginResult.userToken);
+      } catch (pollError) {
+        // Genuinely never got created — surface whichever error is more
+        // informative for the person trying to sign in.
+        throw challengeError ?? pollError;
+      }
 
       // NOTE: intentionally NOT re-checking/re-challenging PIN status here.
       // createUserPinWithWallets() above already bundles PIN setup into the
@@ -873,15 +892,28 @@ export function CircleWalletProvider({ children }: { children: React.ReactNode }
       const freshSdk = await getFreshSdk(appId);
       freshSdk.setAuthentication(loginResult);
       patch({ challengeActive: true });
-      let challengeResult: any;
+      let challengeError: any = null;
       try {
-        challengeResult = await executeChallenge(freshSdk, initBody.challengeId);
+        await executeChallenge(freshSdk, initBody.challengeId, 45000); // shorter timeout OK — pollForWallet below is the real fallback
+      } catch (e) {
+        // Same reasoning as loginWithEmail: a timed-out/failed challenge
+        // promise doesn't necessarily mean the wallet wasn't actually
+        // created on Circle's side — check for real before giving up.
+        challengeError = e;
       } finally {
         patch({ challengeActive: false });
       }
-      console.log("[circleWallet] google wallet-init challenge result:", challengeResult);
+      console.log("[circleWallet] google wallet-init challenge settled —", {
+        succeeded: !challengeError,
+        error: challengeError?.message,
+      });
 
-      const finalWalletBody = await pollForWallet(loginResult.userToken);
+      let finalWalletBody: { address: `0x${string}`; walletId: string };
+      try {
+        finalWalletBody = await pollForWallet(loginResult.userToken);
+      } catch (pollError) {
+        throw challengeError ?? pollError;
+      }
 
       // See loginWithEmail's matching comment above — no second PIN
       // challenge here; createUserPinWithWallets already required one to
