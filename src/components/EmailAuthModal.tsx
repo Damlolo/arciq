@@ -74,10 +74,17 @@ export function EmailAuthModal() {
   // Local, click-scoped flag — separate from the shared `isBusy` context
   // state — so the Google button shows a spinner the INSTANT it's clicked,
   // rather than waiting on the async device-token fetch inside
-  // loginWithGoogle() to land its first patch(). Reset on unmount/error since
-  // a successful click navigates the whole page away (this component
-  // disappears) rather than ever needing to reset it manually.
+  // loginWithGoogle() to land its first patch(). loginWithGoogle() catches
+  // its own errors internally and never rethrows (it just calls patch()),
+  // so a try/catch around the call site can't detect failure — instead,
+  // reset this whenever the shared context reports a fresh error, which is
+  // the actual signal that a login attempt just concluded (successfully, it
+  // navigates the whole page away and this component disappears; on
+  // failure, `error` is what gets set).
   const [googleClicked, setGoogleClicked] = useState(false);
+  useEffect(() => {
+    if (error) setGoogleClicked(false);
+  }, [error]);
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Real, currently-available connectors — injected wallets detected via
@@ -175,13 +182,9 @@ export function EmailAuthModal() {
             <div className="space-y-4">
               {/* ── Google ────────────────────────────────────────────────── */}
               <button
-                onClick={async () => {
+                onClick={() => {
                   setGoogleClicked(true);
-                  try {
-                    await loginWithGoogle();
-                  } catch {
-                    setGoogleClicked(false);
-                  }
+                  loginWithGoogle();
                 }}
                 disabled={isBusy || googleClicked}
                 className="w-full flex items-center justify-center gap-2.5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 transition-colors"
