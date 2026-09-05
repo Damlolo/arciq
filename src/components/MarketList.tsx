@@ -6,6 +6,7 @@ import { useAccount } from "@/lib/circleWallet";
 import { useProtocol } from "../hooks/useProtocol";
 import { formatUsdc, parseUsdc } from "../lib/contracts";
 import { CONTRACT_ADDRESSES, PREDICTION_MARKET_ABI } from "../lib/contracts";
+import { FLAGGED_MARKET_ID_SET } from "../lib/flaggedMarkets";
 
 const MARKET_ADDR = CONTRACT_ADDRESSES.predictionMarket as `0x${string}`;
 const PAGE_SIZE   = 20;
@@ -587,6 +588,7 @@ export function MarketList() {
     const reversed = [...allMarkets].reverse();
 
     for (const { id, market } of reversed) {
+      if (FLAGGED_MARKET_ID_SET.has(Number(id))) continue; // hidden — flagged as unresolvable by the keeper
       if (!market) {
         // Still loading — put in active tentatively
         active.push(id);
@@ -654,7 +656,7 @@ export function MarketList() {
         {/* Status badge */}
         <span className="badge badge-blue text-[11px]">
           {allLoaded
-            ? `${nextMarketId} markets · page ${page + 1}/${totalPages}`
+            ? `${activeIds.length + resolvedIds.length} markets · page ${page + 1}/${totalPages}`
             : `Loading ${loadedCount}/${count}…`}
         </span>
       </div>
