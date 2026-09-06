@@ -109,7 +109,7 @@ function PredictionRow({ id, address }: { id: number; address: `0x${string}` }) 
     <div className="surface-card p-4 flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
-        <p className="text-[13px] font-semibold text-[var(--text-primary)] leading-snug flex-1 line-clamp-2">{m.question}</p>
+        <p className="text-[13px] font-semibold text-[var(--text-primary)] leading-snug flex-1 line-clamp-3">{m.question}</p>
         <span className="shrink-0 text-[11px] px-2.5 py-1 rounded-full font-bold border"
           style={{ background: st.bg, color: st.color, borderColor: st.border }}>
           {st.label}

@@ -211,7 +211,7 @@ function MarketCard({
           <span className="text-[10px] text-[var(--text-muted)] font-mono">#{id.toString()}</span>
         </div>
 
-        <p className="text-[13px] font-semibold text-[var(--text-primary)] leading-snug line-clamp-2 min-h-[2.6rem]">
+        <p className="text-[13px] font-semibold text-[var(--text-primary)] leading-[18px] line-clamp-3 min-h-[54px]">
           {market.question}
         </p>
 
@@ -487,20 +487,43 @@ function TabBtn({
 
 // ── Market List ───────────────────────────────────────────────────────────────
 
-// ── Batched fetch for up to 300 markets ──────────────────────────────────────
-// The old approach fired one useReadContract per market (up to 300 at once),
-// which floods Arc Testnet's public RPC and gets rate-limited (429s) once you
-// have a real number of markets. This fetches through a single client in
-// small throttled batches instead — renders progressively as batches land.
-// Module-level cache — persists across component remounts and tab switches
-// for the lifetime of the page (only clears on a full reload). Arc Testnet's
-// public RPC rate-limits hard enough that re-fetching 270 markets every time
-// you switch tabs isn't viable — this way that cost is paid once per session.
+// ── Multicall-based fetch for up to 300 markets ──────────────────────────────
+// Bundles many getMarket() reads into a single eth_call via Arc's deployed
+// Multicall3 contract, instead of one RPC round-trip per market. Renders
+// progressively as each chunk lands. Module-level cache persists across
+// component remounts and tab switches for the lifetime of the page (only
+// clears on a full reload) — Arc Testnet's public RPC is slow enough that
+// re-fetching everything on every tab switch isn't viable.
 const marketCache = new Map<number, Market>();
+
+// Arc Testnet's deployed Multicall3 (confirmed at docs.arc.io/arc/references/contract-addresses)
+// — same canonical address used on 70+ EVM chains. Not configured in this
+// project's custom `defineChain`-style ARC_TESTNET object, so passed explicitly.
+const MULTICALL3_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
+const MULTICALL_CHUNK_SIZE = 50; // markets per eth_call — keeps individual call/response sizes modest
+
+async function fetchMarketsChunk(
+  publicClient: NonNullable<ReturnType<typeof usePublicClient>>,
+  ids: number[]
+): Promise<void> {
+  const results = await publicClient.multicall({
+    multicallAddress: MULTICALL3_ADDRESS,
+    allowFailure: true,
+    contracts: ids.map((id) => ({
+      address: MARKET_ADDR,
+      abi: PREDICTION_MARKET_ABI,
+      functionName: "getMarket",
+      args: [BigInt(id)],
+    })),
+  } as any) as { status: string; result?: unknown }[];
+  results.forEach((r, i) => {
+    if (r.status === "success") marketCache.set(ids[i], r.result as unknown as Market);
+  });
+}
 
 function useAllMarketsData(count: number) {
   const publicClient = usePublicClient();
-  const [tick, setTick] = useState(0); // bumped to force a re-render as batches land
+  const [tick, setTick] = useState(0); // bumped to force a re-render as chunks land
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -513,40 +536,42 @@ function useAllMarketsData(count: number) {
     let cancelled = false;
     setLoading(true);
 
-    const BATCH_SIZE = 5;
-    const BATCH_DELAY_MS = 2000;
-    const MAX_RETRIES = 4;
+    const MAX_RETRIES = 3;
 
-    async function fetchOne(id: number, attempt = 0): Promise<void> {
+    async function fetchChunkWithRetry(ids: number[], attempt = 0): Promise<void> {
       try {
-        const data = await publicClient!.readContract({
-          address: MARKET_ADDR,
-          abi: PREDICTION_MARKET_ABI,
-          functionName: "getMarket",
-          args: [BigInt(id)],
-        } as any);
-        marketCache.set(id, data as unknown as Market);
+        await fetchMarketsChunk(publicClient!, ids);
       } catch (err: any) {
-        if (cancelled || attempt >= MAX_RETRIES) return; // give up quietly, others keep loading
-        const msg = String(err?.shortMessage ?? err?.message ?? err).toLowerCase();
-        const rateLimited = msg.includes("429") || msg.includes("too many requests") || msg.includes("rate limit");
-        // Rate-limit errors get real backoff; anything else retries quickly.
-        const backoff = rateLimited ? 3000 * (attempt + 1) : 1000;
-        await new Promise((r) => setTimeout(r, backoff));
-        if (!cancelled) return fetchOne(id, attempt + 1);
+        if (cancelled || attempt >= MAX_RETRIES) {
+          // Multicall itself failed repeatedly (unexpected, but be defensive) —
+          // fall back to one-by-one reads for just this chunk rather than
+          // losing this data entirely.
+          for (const id of ids) {
+            if (cancelled) return;
+            try {
+              const data = await publicClient!.readContract({
+                address: MARKET_ADDR,
+                abi: PREDICTION_MARKET_ABI,
+                functionName: "getMarket",
+                args: [BigInt(id)],
+              } as any);
+              marketCache.set(id, data as unknown as Market);
+            } catch { /* give up quietly on this one, others keep loading */ }
+          }
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        if (!cancelled) return fetchChunkWithRetry(ids, attempt + 1);
       }
     }
 
     async function fetchAll() {
-      for (let start = 0; start < missingIds.length; start += BATCH_SIZE) {
+      for (let start = 0; start < missingIds.length; start += MULTICALL_CHUNK_SIZE) {
         if (cancelled) return;
-        const batchIds = missingIds.slice(start, start + BATCH_SIZE);
-        await Promise.all(batchIds.map((id) => fetchOne(id)));
+        const chunk = missingIds.slice(start, start + MULTICALL_CHUNK_SIZE);
+        await fetchChunkWithRetry(chunk);
         if (cancelled) return;
-        setTick((n) => n + 1); // progressive render as each batch lands
-        if (start + BATCH_SIZE < missingIds.length) {
-          await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
-        }
+        setTick((n) => n + 1); // progressive render as each chunk lands
       }
       if (!cancelled) setLoading(false);
     }
