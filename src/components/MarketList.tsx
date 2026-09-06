@@ -90,10 +90,12 @@ function MarketCard({
   id,
   predict,
   walletAddress,
+  usdcBalance,
 }: {
   id: bigint;
   predict: (id: bigint, yes: boolean, stake: string) => Promise<`0x${string}` | void>;
   walletAddress?: `0x${string}`;
+  usdcBalance: bigint;
 }) {
   const { data: m }         = useMarketData(id);
   const { data: posRaw }    = useReadContract({
@@ -305,7 +307,7 @@ function MarketCard({
         )}
       </div>
 
-      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expanded && isActive ? "max-h-[320px] opacity-100" : "max-h-0 opacity-0"}`}>
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expanded && isActive ? "max-h-[380px] opacity-100" : "max-h-0 opacity-0"}`}>
         <div className="surface-card rounded-t-none border-t-0 p-5 flex flex-col gap-3.5"
           style={{ borderColor: "var(--border-accent)" }}>
 
@@ -337,6 +339,24 @@ function MarketCard({
               autoFocus={expanded}
             />
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[11px] text-[var(--text-muted)] font-semibold">USDC</span>
+          </div>
+
+          <div className="grid grid-cols-4 gap-1.5">
+            {[0.25, 0.5, 0.75, 1].map((pct) => (
+              <button
+                key={pct}
+                type="button"
+                onClick={() => {
+                  const amount = (Number(usdcBalance) / 1e6) * pct;
+                  setStakeInput(amount > 0 ? amount.toFixed(2) : "");
+                  setError("");
+                }}
+                className="py-1.5 rounded-lg text-[11px] font-bold transition-colors"
+                style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+              >
+                {pct === 1 ? "MAX" : `${pct * 100}%`}
+              </button>
+            ))}
           </div>
 
           {stakeNum > 0 && (
@@ -592,7 +612,7 @@ function useAllMarketsData(count: number) {
 
 // ── Market List ───────────────────────────────────────────────────────────────
 export function MarketList() {
-  const { nextMarketId, predict } = useProtocol();
+  const { nextMarketId, predict, usdcBalance } = useProtocol();
   const { address: walletAddress } = useAccount();
 
   const [tab, setTab]   = useState<"active" | "resolved">("active");
@@ -717,6 +737,7 @@ export function MarketList() {
               id={id}
               predict={predict}
               walletAddress={walletAddress}
+              usdcBalance={usdcBalance}
             />
           ))}
         </div>

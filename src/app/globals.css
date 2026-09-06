@@ -285,21 +285,30 @@ input[type="number"] { -moz-appearance: textfield; }
 .btn-no:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
 /* Premium input */
-.premium-input {
-  width: 100%;
-  background: var(--input-bg);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  padding: 12px 16px;
-  color: var(--text-primary);
-  font-size: 15px;
-  outline: none;
-}
-.premium-input::placeholder { color: var(--text-muted); }
-.premium-input:focus {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px var(--accent-glow);
-  background: var(--input-bg-focus);
+/* @layer components ensures Tailwind utility overrides (pl-8, pr-16, etc.)
+   on any element using this class always win the cascade, regardless of
+   where this rule physically sits in the file. Without this layer, this
+   class's own `padding` shorthand was silently overriding pl-/pr- utility
+   overrides wherever they were used (MarketList.tsx's $-prefixed stake
+   input, BorrowPanel.tsx and VaultCard.tsx's suffix-labeled inputs) purely
+   because it happened to be declared after @tailwind utilities in this file. */
+@layer components {
+  .premium-input {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    color: var(--text-primary);
+    font-size: 15px;
+    outline: none;
+  }
+  .premium-input::placeholder { color: var(--text-muted); }
+  .premium-input:focus {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+    background: var(--input-bg-focus);
+  }
 }
 
 /* Badges */
